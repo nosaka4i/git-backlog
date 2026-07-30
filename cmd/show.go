@@ -8,7 +8,8 @@ import (
 )
 
 func newShowCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show an item's full state and op-log history",
 		Args:  cobra.ExactArgs(1),
@@ -19,6 +20,18 @@ func newShowCmd() *cobra.Command {
 			item, err := store.LoadItem(args[0])
 			if err != nil {
 				return err
+			}
+			if jsonFlag {
+				history, err := store.History(item.ID)
+				if err != nil {
+					return err
+				}
+				detail := jsonItemDetail{
+					jsonItem: toJSONItem(item),
+					Tip:      item.Tip,
+					History:  toJSONHistory(history),
+				}
+				return printJSON(detail)
 			}
 			priority := "unset"
 			if item.Priority != store.PriorityNone {
@@ -50,4 +63,6 @@ func newShowCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
+	return cmd
 }

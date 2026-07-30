@@ -24,7 +24,7 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s  list: %s\n", store.ShortID(item.ID), item.List)
+			fmt.Printf("Moved item successfully: %s\n", store.ShortID(item.ID))
 			return nil
 		},
 	}

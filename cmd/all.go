@@ -10,6 +10,8 @@ import (
 
 func newAllCmd() *cobra.Command {
 	var listFlag, priorityFlag string
+	var jsonFlag bool
+	var closedLimit int
 	cmd := &cobra.Command{
 		Use:   "all",
 		Short: "List all backlog items, grouped by list then priority",
@@ -23,7 +25,8 @@ func newAllCmd() *cobra.Command {
 				return err
 			}
 			displayLists := []store.List{store.ListBacklog, store.ListCurrent, store.ListClosed}
-			if listFlag != "" {
+			explicitList := listFlag != ""
+			if explicitList {
 				l, err := store.ParseList(listFlag)
 				if err != nil {
 					return err
@@ -38,19 +41,46 @@ func newAllCmd() *cobra.Command {
 				}
 				items = filterPriority(items, p)
 			}
-			sort.SliceStable(items, func(i, j int) bool {
-				if items[i].List.Rank() != items[j].List.Rank() {
-					return items[i].List.Rank() < items[j].List.Rank()
-				}
-				if items[i].Priority.Rank() != items[j].Priority.Rank() {
-					return items[i].Priority.Rank() < items[j].Priority.Rank()
-				}
-				return items[i].CreatedAt.Before(items[j].CreatedAt)
-			})
+
 			byList := make(map[store.List][]*store.Item)
 			for _, it := range items {
 				byList[it.List] = append(byList[it.List], it)
 			}
+
+			// Closed items accumulate forever in a successful backlog; cap
+			// them to the N most recently touched unless the caller asked
+			// specifically for the closed list (--list closed), in which
+			// case they get everything.
+			omitted := 0
+			if !explicitList && closedLimit > 0 {
+				if group := byList[store.ListClosed]; len(group) > closedLimit {
+					sort.SliceStable(group, func(i, j int) bool {
+						return group[i].UpdatedAt.After(group[j].UpdatedAt)
+					})
+					omitted = len(group) - closedLimit
+					byList[store.ListClosed] = group[:closedLimit]
+				}
+			}
+
+			for _, group := range byList {
+				sort.SliceStable(group, func(i, j int) bool {
+					if group[i].Priority.Rank() != group[j].Priority.Rank() {
+						return group[i].Priority.Rank() < group[j].Priority.Rank()
+					}
+					return group[i].CreatedAt.Before(group[j].CreatedAt)
+				})
+			}
+
+			if jsonFlag {
+				out := make([]jsonItem, 0, len(items))
+				for _, l := range displayLists {
+					for _, it := range byList[l] {
+						out = append(out, toJSONItem(it))
+					}
+				}
+				return printJSON(out)
+			}
+
 			for _, l := range displayLists {
 				fmt.Println(string(l) + ":")
 				group := byList[l]
@@ -66,12 +96,18 @@ func newAllCmd() *cobra.Command {
 					}
 					fmt.Printf("    %s  %s\n", store.ShortID(it.ID), truncate(it.Title, 60))
 				}
+				if l == store.ListClosed && omitted > 0 {
+					fmt.Printf("  ... and %d more (use --closed-limit 0 to show all, or --list closed)\n", omitted)
+				}
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&listFlag, "list", "", "filter by backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "filter by p0|p1|p2|none")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
+	cmd.Flags().IntVar(&closedLimit, "closed-limit", 10,
+		"cap closed items to the N most recently updated (0 = unlimited); ignored when --list is set")
 	return cmd
 }
 

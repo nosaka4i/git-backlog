@@ -70,7 +70,7 @@ func LoadItem(idPrefix string) (*Item, error) {
 			return nil, err
 		}
 	}
-	return itemFromEntries(id, ref, tip, entries, createCommit)
+	return itemFromEntries(id, ref, tip, entries, tipCommit, createCommit)
 }
 
 // AllItems loads every tracked item. Order is unspecified; callers sort for
@@ -98,7 +98,7 @@ func AllItems() ([]*Item, error) {
 				return nil, err
 			}
 		}
-		item, err := itemFromEntries(id, r.Ref, r.Hash, entries, createCommit)
+		item, err := itemFromEntries(id, r.Ref, r.Hash, entries, tipCommit, createCommit)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +206,7 @@ func snapshotEntries(changes map[string]*string, base []gitx.TreeEntry, clock in
 	return entries, nil
 }
 
-func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, createCommit *gitx.CommitInfo) (*Item, error) {
+func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, createCommit *gitx.CommitInfo) (*Item, error) {
 	title := fieldValue(entries, fieldTitle)
 	if title == "" {
 		return nil, fmt.Errorf("item %s has no title (corrupt?)", id)
@@ -222,6 +222,7 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, createCommit
 		OwnerName:  createCommit.AuthorName,
 		OwnerEmail: createCommit.AuthorEmail,
 		CreatedAt:  parseGitDate(createCommit.AuthorDate),
+		UpdatedAt:  parseGitDate(tipCommit.AuthorDate),
 		Clock:      parseClock(fieldValue(entries, fieldClock)),
 	}, nil
 }

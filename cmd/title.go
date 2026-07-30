@@ -25,7 +25,7 @@ func newTitleCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s  %s\n", store.ShortID(item.ID), item.Title)
+			fmt.Printf("Renamed item successfully: %s\n", store.ShortID(item.ID))
 			return nil
 		},
 	}

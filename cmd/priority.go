@@ -24,11 +24,7 @@ func newPriorityCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			priority := "unset"
-			if item.Priority != store.PriorityNone {
-				priority = string(item.Priority)
-			}
-			fmt.Printf("%s  priority: %s\n", store.ShortID(item.ID), priority)
+			fmt.Printf("Updated item priority successfully: %s\n", store.ShortID(item.ID))
 			return nil
 		},
 	}

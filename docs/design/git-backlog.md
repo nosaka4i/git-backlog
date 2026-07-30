@@ -138,8 +138,8 @@ Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
 
 **Read**
 ```
-git backlog all [--list <value>] [--priority <value>]
-git backlog show <id>
+git backlog all [--list <value>] [--priority <value>] [--closed-limit N] [--json]
+git backlog show <id> [--json]
 ```
 `all` prints everything, grouped by list (backlog, current, then closed —
 Trello's To Do/Doing/Done column order), then by priority tier within each
@@ -147,6 +147,18 @@ list (p0, p1, p2, then unprioritized), sorted oldest-first by creation time
 within each group. Long titles truncate for display (~60 chars + "…");
 `show` always prints the full title untruncated, plus the item's full
 op-log history.
+
+A tool that's succeeding at its job accumulates `closed` items forever, so
+by default `all` caps the closed section to the 10 most recently *updated*
+(not created) items — using the tip op-log commit's own timestamp, already
+read as part of loading the item, so no extra git calls. `--closed-limit 0`
+removes the cap; `--list closed` (an explicit, narrow ask) always shows the
+complete closed list regardless of the cap.
+
+`--json` swaps the human-readable output for machine-readable JSON (same
+filtering, same sort order, same closed cap) — a flag on the existing read
+commands, not a separate verb, matching how `kubectl`/`gh`/`docker` expose
+it.
 
 **Update**
 ```
@@ -159,11 +171,12 @@ git backlog title <id> "<new title>"
 ```
 git backlog init
 git backlog sync
+git backlog version
 ```
 `init` starts tracking backlog items in the current repo (creates the ref
 namespace). `sync` pushes/fetches that namespace against the configured
 remote, reconciling divergent op-logs automatically — see Sync & conflict
-resolution above.
+resolution above. `version` prints the build version.
 
 ## Monorepo scoping: considered and closed
 

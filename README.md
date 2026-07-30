@@ -1,9 +1,8 @@
 # git-backlog
 
-A git-native CLI for a small, personal/small-team backlog — deciding WHAT
-to work on next. State is stored as real git objects under `refs/backlog/*`
-(no SQLite, no markdown file, no external service) and synced via plain
-`git push`/`fetch`.
+A lightweight and opinionated backlog CLI tool that leverages git's distributed source management mechanics.  Ideal for small teams of
+developers, product managers, or even AI coding agents.  State is stored as real git objects under `refs/backlog/*` and synced via
+plain `git push`/`fetch`.  Keep track of items, set priority, shift them across your backlog, current, or closed lists.
 
 See [`docs/design/git-backlog.md`](docs/design/git-backlog.md) for the full
 design: schema, storage model, and how `sync` reconciles concurrent edits
@@ -37,15 +36,27 @@ git backlog sync
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2]` | Create an item (defaults to `--list backlog`, unset priority) |
-| `all [--list <value>] [--priority <value>]` | List every item, grouped by list then priority, oldest-first within each group (empty lists shown as `(empty)`) |
-| `show <id>` | Full item state plus its complete op-log history |
+| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, oldest-first within each group (empty lists shown as `(empty)`) |
+| `show <id> [--json]` | Full item state plus its complete op-log history |
 | `list <id> <backlog\|current\|closed>` | Move an item between lists (closing an item is just `list <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none>` | Set or clear priority |
 | `title <id> "<new title>"` | Rename an item |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
+| `version` | Print the git-backlog version |
 
 `<id>` accepts any unambiguous prefix of an item's id (shown by `all` and
 `add` in git's usual auto-growing short form).
+
+`--json` on `all`/`show` prints machine-readable output instead (a JSON
+array of items for `all`, one item plus its full op-log history for
+`show`) — same filtering, same sort order, unset priority simply omitted
+from the object rather than printed as a placeholder string.
+
+A successful backlog accumulates `closed` items forever, so `all` caps the
+closed section to the 10 most recently updated items by default (a
+`... and N more` note shows how many are hidden). `--closed-limit 0`
+removes the cap; `--list closed` also shows the full closed list, since
+asking for it specifically is already an explicit, narrow request.
 
 ## Development
 

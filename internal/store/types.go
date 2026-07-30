@@ -115,6 +115,7 @@ type Item struct {
 	OwnerName  string
 	OwnerEmail string
 	CreatedAt  time.Time
+	UpdatedAt  time.Time // when the tip op-log commit was made
 	Clock      int
 }
 

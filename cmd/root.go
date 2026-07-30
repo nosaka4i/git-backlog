@@ -16,6 +16,10 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	// completion is still fully usable (`git backlog completion bash`,
+	// etc.) — just hidden from --help, since it's shell setup plumbing,
+	// not something most users need to see in the main command list.
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
@@ -25,6 +29,7 @@ func init() {
 		newPriorityCmd(),
 		newTitleCmd(),
 		newSyncCmd(),
+		newVersionCmd(),
 	)
 }
 
