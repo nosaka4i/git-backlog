@@ -140,6 +140,7 @@ Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
 ```
 git backlog all [--list <value>] [--priority <value>] [--closed-limit N] [--json]
 git backlog show <id> [--json]
+git backlog history [--list <value>] [--priority <value>] [--json]
 ```
 `all` prints everything, grouped by list (current, backlog, then closed —
 what you're actively doing first, what's queued next, what's done last),
@@ -159,6 +160,24 @@ complete closed list regardless of the cap.
 filtering, same sort order, same closed cap) — a flag on the existing read
 commands, not a separate verb, matching how `kubectl`/`gh`/`docker` expose
 it.
+
+`history` flattens every item's op-log into one feed, newest-first,
+instead of `show`'s per-item view. Each entry renders its field changes as
+a short verb phrase — `Added item`, `Moved to <list>`, `Updated priority
+to <value>`, `Cleared priority`, `Renamed item` — rather than raw
+`field: value`, and `show <id>`'s own history section uses the same
+phrasing, so the two commands read as one consistent style rather than
+two different formats for the same underlying op-log data. A single
+op-log commit that touches multiple fields at once (the common case being
+a `sync` merge commit reconciling two concurrent edits) renders as one
+timestamp/id/author header followed by one action line per field — the
+header's author is whoever's commit that is (e.g. whoever ran `sync`
+locally for a merge commit), not necessarily whoever originally made each
+individual field change on the other side; a pre-existing property of
+diffing against a commit's first parent, not something `history`
+introduces. `--list`/`--priority` filter by an item's *current* state,
+same as `all` — not by what the value was at the time of each historical
+op.
 
 **Update**
 ```

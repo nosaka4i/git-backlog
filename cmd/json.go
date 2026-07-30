@@ -74,6 +74,18 @@ func toJSONHistory(history []store.OpRecord) []jsonOp {
 	return ops
 }
 
+// jsonHistoryEntry is one entry in `history --json`: a single op-log
+// commit, tagged with which item it belongs to (an item's *current*
+// title, not necessarily its title at the time of this op).
+type jsonHistoryEntry struct {
+	When    time.Time    `json:"when"`
+	Commit  string       `json:"commit"`
+	ItemID  string       `json:"item_id"`
+	Title   string       `json:"title"`
+	Author  jsonOwner    `json:"author"`
+	Changes []jsonChange `json:"changes"`
+}
+
 func toJSONChanges(changes []store.FieldChange) []jsonChange {
 	out := make([]jsonChange, 0, len(changes))
 	for _, ch := range changes {

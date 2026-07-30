@@ -52,12 +52,8 @@ func newShowCmd() *cobra.Command {
 			for _, op := range history {
 				fmt.Printf("  %s  %s  %s <%s>\n",
 					op.When.Format("2006-01-02 15:04:05 -0700"), op.Commit[:12], op.AuthorName, op.AuthorEmail)
-				for _, ch := range op.Changes {
-					if ch.Removed {
-						fmt.Printf("      %s: (cleared)\n", ch.Field)
-					} else {
-						fmt.Printf("      %s: %s\n", ch.Field, ch.Value)
-					}
+				for _, line := range opActionLines(op) {
+					fmt.Printf("      %s\n", line)
 				}
 			}
 			return nil

@@ -14,16 +14,21 @@ func TestShowHumanOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.SetList(item.ID, store.ListCurrent); err != nil {
+		t.Fatal(err)
+	}
 	out, err := runCmd(t, newShowCmd(), item.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
 		"title:    fix flaky test",
-		"list:     backlog",
+		"list:     current",
 		"priority: p1",
 		"owner:    alice <alice@example.com>",
 		"history:",
+		"Added item",
+		"Moved to current",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)

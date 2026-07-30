@@ -25,6 +25,7 @@ func init() {
 		newAddCmd(),
 		newAllCmd(),
 		newShowCmd(),
+		newHistoryCmd(),
 		newListCmd(),
 		newPriorityCmd(),
 		newTitleCmd(),
