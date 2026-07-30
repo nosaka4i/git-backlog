@@ -26,14 +26,17 @@ func TestAllGroupsByListThenPriority(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	backlogIdx := strings.Index(out, "backlog:")
-	currentIdx := strings.Index(out, "current:")
-	closedIdx := strings.Index(out, "closed:")
+	backlogIdx := strings.Index(out, "backlog (")
+	currentIdx := strings.Index(out, "current (")
+	closedIdx := strings.Index(out, "closed (")
 	if backlogIdx < 0 || currentIdx < 0 || closedIdx < 0 {
 		t.Fatalf("missing a list header:\n%s", out)
 	}
 	if !(currentIdx < backlogIdx && backlogIdx < closedIdx) {
 		t.Fatalf("list headers out of order (want current, backlog, closed):\n%s", out)
+	}
+	if !strings.Contains(out, "current (1):") || !strings.Contains(out, "backlog (2):") || !strings.Contains(out, "closed (0):") {
+		t.Fatalf("list headers missing expected counts:\n%s", out)
 	}
 	if !strings.Contains(out, "backlog p1 item") || !strings.Contains(out, "current p0 item") {
 		t.Fatalf("missing expected items:\n%s", out)
@@ -58,7 +61,7 @@ func TestAllListFilterShowsOnlyThatList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out, "backlog:") || strings.Contains(out, "closed:") {
+	if strings.Contains(out, "backlog (") || strings.Contains(out, "closed (") {
 		t.Fatalf("expected only the current section:\n%s", out)
 	}
 	if !strings.Contains(out, "in current") || strings.Contains(out, "in backlog") {
@@ -115,6 +118,9 @@ func TestAllCapsClosedByDefault(t *testing.T) {
 	}
 	if strings.Count(out, "closed item ") != 10 {
 		t.Fatalf("expected 10 closed items shown by default, got %d:\n%s", strings.Count(out, "closed item "), out)
+	}
+	if !strings.Contains(out, "closed (15):") {
+		t.Fatalf("expected the header count to show the true total (15), not the capped count:\n%s", out)
 	}
 	if !strings.Contains(out, "... and 5 more") {
 		t.Fatalf("expected an omitted-count note:\n%s", out)

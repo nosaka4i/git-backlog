@@ -46,6 +46,10 @@ func newAllCmd() *cobra.Command {
 			for _, it := range items {
 				byList[it.List] = append(byList[it.List], it)
 			}
+			totalByList := make(map[store.List]int, len(byList))
+			for l, group := range byList {
+				totalByList[l] = len(group)
+			}
 
 			// Closed items accumulate forever in a successful backlog; cap
 			// them to the N most recently touched unless the caller asked
@@ -82,7 +86,7 @@ func newAllCmd() *cobra.Command {
 			}
 
 			for _, l := range displayLists {
-				fmt.Println(string(l) + ":")
+				fmt.Printf("%s (%d):\n", l, totalByList[l])
 				group := byList[l]
 				if len(group) == 0 {
 					fmt.Println("  (empty)")

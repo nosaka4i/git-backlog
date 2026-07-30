@@ -63,19 +63,23 @@ type jsonItemDetail struct {
 func toJSONHistory(history []store.OpRecord) []jsonOp {
 	ops := make([]jsonOp, 0, len(history))
 	for _, op := range history {
-		changes := make([]jsonChange, 0, len(op.Changes))
-		for _, ch := range op.Changes {
-			changes = append(changes, jsonChange{Field: ch.Field, Removed: ch.Removed, Value: ch.Value})
-		}
 		ops = append(ops, jsonOp{
 			Commit:  op.Commit,
 			Clock:   op.Clock,
 			Author:  jsonOwner{Name: op.AuthorName, Email: op.AuthorEmail},
 			When:    op.When,
-			Changes: changes,
+			Changes: toJSONChanges(op.Changes),
 		})
 	}
 	return ops
+}
+
+func toJSONChanges(changes []store.FieldChange) []jsonChange {
+	out := make([]jsonChange, 0, len(changes))
+	for _, ch := range changes {
+		out = append(out, jsonChange{Field: ch.Field, Removed: ch.Removed, Value: ch.Value})
+	}
+	return out
 }
 
 func printJSON(v any) error {
