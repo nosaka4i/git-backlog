@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -8,20 +8,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newEditCmd() *cobra.Command {
-	var titleFlag string
-	cmd := &cobra.Command{
-		Use:   "edit <id>",
-		Short: "Edit an item's title",
-		Args:  cobra.ExactArgs(1),
+func newTitleCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "title <id> <new title>",
+		Short: "Rename an item",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireInit(); err != nil {
 				return err
 			}
-			if !cmd.Flags().Changed("title") {
-				return fmt.Errorf("nothing to edit; pass --title")
-			}
-			title := strings.TrimSpace(titleFlag)
+			title := strings.TrimSpace(args[1])
 			if title == "" {
 				return fmt.Errorf("title must not be empty")
 			}
@@ -33,6 +29,4 @@ func newEditCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&titleFlag, "title", "", "new title")
-	return cmd
 }

@@ -1,37 +1,36 @@
-// Command git-backlog is a git-native CLI for a small backlog: state is
-// stored as real git objects under refs/backlog/*, synced via git
-// push/fetch. See docs/design/git-backlog.md.
-package main
+// Package cmd holds the git-backlog CLI's cobra commands.
+package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/nosaka4i/git-backlog/internal/gitx"
 	"github.com/spf13/cobra"
 )
 
-func main() {
-	root := &cobra.Command{
-		Use:           "git-backlog",
-		Short:         "A git-native backlog: what to work on next.",
-		SilenceUsage:  true,
-		SilenceErrors: true,
-	}
-	root.AddCommand(
+var rootCmd = &cobra.Command{
+	Use:           "git-backlog",
+	Short:         "A git-native backlog: what to work on next.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+}
+
+func init() {
+	rootCmd.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
 		newAllCmd(),
 		newShowCmd(),
 		newListCmd(),
 		newPriorityCmd(),
-		newEditCmd(),
+		newTitleCmd(),
 		newSyncCmd(),
 	)
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "git-backlog:", err)
-		os.Exit(1)
-	}
+}
+
+// Execute runs the root command.
+func Execute() error {
+	return rootCmd.Execute()
 }
 
 // requireInit checks the repo has been set up with `git backlog init`.

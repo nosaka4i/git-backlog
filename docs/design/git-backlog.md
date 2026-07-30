@@ -141,16 +141,18 @@ Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
 git backlog all [--list <value>] [--priority <value>]
 git backlog show <id>
 ```
-`all` prints everything, grouped by priority tier (p0, p1, p2, then
-unprioritized), sorted oldest-first by creation time within each group.
-Long titles truncate for display (~60 chars + "…"); `show` always prints
-the full title untruncated, plus the item's full op-log history.
+`all` prints everything, grouped by list (backlog, current, then closed —
+Trello's To Do/Doing/Done column order), then by priority tier within each
+list (p0, p1, p2, then unprioritized), sorted oldest-first by creation time
+within each group. Long titles truncate for display (~60 chars + "…");
+`show` always prints the full title untruncated, plus the item's full
+op-log history.
 
 **Update**
 ```
 git backlog list <id> <backlog|current|closed>
 git backlog priority <id> <p0|p1|p2|none>
-git backlog edit <id> --title "<new title>"
+git backlog title <id> "<new title>"
 ```
 
 **Sync / Init**

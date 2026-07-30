@@ -12,7 +12,7 @@ from different clones.
 ## Install
 
 ```
-go install github.com/nosaka4i/git-backlog/cmd/git-backlog@latest
+go install github.com/nosaka4i/git-backlog@latest
 ```
 
 Requires `$GOPATH/bin` (or `$GOBIN`) on your `PATH` — git finds
@@ -37,11 +37,11 @@ git backlog sync
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2]` | Create an item (defaults to `--list backlog`, unset priority) |
-| `all [--list <value>] [--priority <value>]` | List items, grouped by priority, oldest-first within each group |
+| `all [--list <value>] [--priority <value>]` | List every item, grouped by list then priority, oldest-first within each group (empty lists shown as `(empty)`) |
 | `show <id>` | Full item state plus its complete op-log history |
 | `list <id> <backlog\|current\|closed>` | Move an item between lists (closing an item is just `list <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none>` | Set or clear priority |
-| `edit <id> --title "<new title>"` | Rename an item |
+| `title <id> "<new title>"` | Rename an item |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
 
 `<id>` accepts any unambiguous prefix of an item's id (shown by `all` and
@@ -50,7 +50,7 @@ git backlog sync
 ## Development
 
 ```
-go build ./...
+go build      # builds ./git-backlog (gitignored)
 go vet ./...
 go test ./...
 ```

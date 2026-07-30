@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ func newAllCmd() *cobra.Command {
 	var listFlag, priorityFlag string
 	cmd := &cobra.Command{
 		Use:   "all",
-		Short: "List all backlog items, grouped by priority",
+		Short: "List all backlog items, grouped by list then priority",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireInit(); err != nil {
@@ -22,12 +22,14 @@ func newAllCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			displayLists := []store.List{store.ListBacklog, store.ListCurrent, store.ListClosed}
 			if listFlag != "" {
 				l, err := store.ParseList(listFlag)
 				if err != nil {
 					return err
 				}
 				items = filterList(items, l)
+				displayLists = []store.List{l}
 			}
 			if priorityFlag != "" {
 				p, err := store.ParsePriority(priorityFlag)
@@ -37,22 +39,33 @@ func newAllCmd() *cobra.Command {
 				items = filterPriority(items, p)
 			}
 			sort.SliceStable(items, func(i, j int) bool {
+				if items[i].List.Rank() != items[j].List.Rank() {
+					return items[i].List.Rank() < items[j].List.Rank()
+				}
 				if items[i].Priority.Rank() != items[j].Priority.Rank() {
 					return items[i].Priority.Rank() < items[j].Priority.Rank()
 				}
 				return items[i].CreatedAt.Before(items[j].CreatedAt)
 			})
-			if len(items) == 0 {
-				fmt.Println("no items")
-				return nil
-			}
-			lastRank := -1
+			byList := make(map[store.List][]*store.Item)
 			for _, it := range items {
-				if it.Priority.Rank() != lastRank {
-					lastRank = it.Priority.Rank()
-					fmt.Println(groupLabel(it.Priority))
+				byList[it.List] = append(byList[it.List], it)
+			}
+			for _, l := range displayLists {
+				fmt.Println(string(l) + ":")
+				group := byList[l]
+				if len(group) == 0 {
+					fmt.Println("  (empty)")
+					continue
 				}
-				fmt.Printf("  %s  [%s]  %s\n", store.ShortID(it.ID), it.List, truncate(it.Title, 60))
+				lastPriority := -1
+				for _, it := range group {
+					if it.Priority.Rank() != lastPriority {
+						lastPriority = it.Priority.Rank()
+						fmt.Println("  " + groupLabel(it.Priority))
+					}
+					fmt.Printf("    %s  %s\n", store.ShortID(it.ID), truncate(it.Title, 60))
+				}
 			}
 			return nil
 		},

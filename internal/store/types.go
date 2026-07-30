@@ -22,6 +22,21 @@ const (
 	ListClosed  List = "closed"
 )
 
+// Rank orders lists for grouped display: backlog, current, then closed —
+// Trello's To Do / Doing / Done column order.
+func (l List) Rank() int {
+	switch l {
+	case ListBacklog:
+		return 0
+	case ListCurrent:
+		return 1
+	case ListClosed:
+		return 2
+	default:
+		return 3
+	}
+}
+
 // ParseList validates a user-supplied list value.
 func ParseList(s string) (List, error) {
 	switch List(s) {
