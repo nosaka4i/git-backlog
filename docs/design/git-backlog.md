@@ -141,12 +141,12 @@ Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
 git backlog all [--list <value>] [--priority <value>] [--closed-limit N] [--json]
 git backlog show <id> [--json]
 ```
-`all` prints everything, grouped by list (backlog, current, then closed —
-Trello's To Do/Doing/Done column order), then by priority tier within each
-list (p0, p1, p2, then unprioritized), sorted oldest-first by creation time
-within each group. Long titles truncate for display (~60 chars + "…");
-`show` always prints the full title untruncated, plus the item's full
-op-log history.
+`all` prints everything, grouped by list (current, backlog, then closed —
+what you're actively doing first, what's queued next, what's done last),
+then by priority tier within each list (p0, p1, p2, then unprioritized),
+sorted oldest-first by creation time within each group. Long titles
+truncate for display (~60 chars + "…"); `show` always prints the full
+title untruncated, plus the item's full op-log history.
 
 A tool that's succeeding at its job accumulates `closed` items forever, so
 by default `all` caps the closed section to the 10 most recently *updated*

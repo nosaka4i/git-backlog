@@ -22,13 +22,13 @@ const (
 	ListClosed  List = "closed"
 )
 
-// Rank orders lists for grouped display: backlog, current, then closed —
-// Trello's To Do / Doing / Done column order.
+// Rank orders lists for grouped display: current, backlog, then closed —
+// what you're actively doing first, what's queued next, what's done last.
 func (l List) Rank() int {
 	switch l {
-	case ListBacklog:
-		return 0
 	case ListCurrent:
+		return 0
+	case ListBacklog:
 		return 1
 	case ListClosed:
 		return 2

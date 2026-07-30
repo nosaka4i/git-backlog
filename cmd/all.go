@@ -24,7 +24,7 @@ func newAllCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			displayLists := []store.List{store.ListBacklog, store.ListCurrent, store.ListClosed}
+			displayLists := []store.List{store.ListCurrent, store.ListBacklog, store.ListClosed}
 			explicitList := listFlag != ""
 			if explicitList {
 				l, err := store.ParseList(listFlag)

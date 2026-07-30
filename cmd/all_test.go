@@ -32,8 +32,8 @@ func TestAllGroupsByListThenPriority(t *testing.T) {
 	if backlogIdx < 0 || currentIdx < 0 || closedIdx < 0 {
 		t.Fatalf("missing a list header:\n%s", out)
 	}
-	if !(backlogIdx < currentIdx && currentIdx < closedIdx) {
-		t.Fatalf("list headers out of order (want backlog, current, closed):\n%s", out)
+	if !(currentIdx < backlogIdx && backlogIdx < closedIdx) {
+		t.Fatalf("list headers out of order (want current, backlog, closed):\n%s", out)
 	}
 	if !strings.Contains(out, "backlog p1 item") || !strings.Contains(out, "current p0 item") {
 		t.Fatalf("missing expected items:\n%s", out)
