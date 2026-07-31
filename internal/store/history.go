@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/nosaka4i/git-backlog/internal/gitx"
@@ -56,7 +57,10 @@ func History(idPrefix string) ([]OpRecord, error) {
 				if e.Name == fieldClock {
 					continue
 				}
-				val, _ := gitx.CatBlob(e.Hash)
+				val, err := gitx.CatBlob(e.Hash)
+				if err != nil {
+					return nil, fmt.Errorf("reading %s blob %s: %w", e.Name, e.Hash, err)
+				}
 				changes = append(changes, FieldChange{Field: e.Name, Value: val})
 			}
 		} else {
@@ -72,13 +76,20 @@ func History(idPrefix string) ([]OpRecord, error) {
 					changes = append(changes, FieldChange{Field: d.Name, Removed: true})
 					continue
 				}
-				val, _ := gitx.CatBlob(d.NewHash)
+				val, err := gitx.CatBlob(d.NewHash)
+				if err != nil {
+					return nil, fmt.Errorf("reading %s blob %s: %w", d.Name, d.NewHash, err)
+				}
 				changes = append(changes, FieldChange{Field: d.Name, Value: val})
 			}
 		}
+		clockRaw, err := fieldValue(entries, fieldClock)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, OpRecord{
 			Commit:      c,
-			Clock:       parseClock(fieldValue(entries, fieldClock)),
+			Clock:       parseClock(clockRaw),
 			AuthorName:  ci.AuthorName,
 			AuthorEmail: ci.AuthorEmail,
 			When:        parseGitDate(ci.AuthorDate),

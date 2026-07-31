@@ -183,7 +183,11 @@ func mergeItem(local, remote string) (string, error) {
 		}
 		merged[e.Name] = e.Hash
 	}
-	maxClock := parseClock(fieldValue(baseEntries, fieldClock))
+	baseClockRaw, err := fieldValue(baseEntries, fieldClock)
+	if err != nil {
+		return "", err
+	}
+	maxClock := parseClock(baseClockRaw)
 
 	touches := make(map[string][]fieldTouch)
 	for _, commits := range [][]string{localCommits, remoteCommits} {
@@ -199,7 +203,11 @@ func mergeItem(local, remote string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			clock := parseClock(fieldValue(entries, fieldClock))
+			clockRaw, err := fieldValue(entries, fieldClock)
+			if err != nil {
+				return "", err
+			}
+			clock := parseClock(clockRaw)
 			if clock > maxClock {
 				maxClock = clock
 			}

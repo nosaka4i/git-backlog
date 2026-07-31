@@ -148,7 +148,11 @@ func applyOp(idPrefix string, changes map[string]*string, message string) (*Item
 	if err != nil {
 		return nil, err
 	}
-	currentClock := parseClock(fieldValue(current, fieldClock))
+	currentClockRaw, err := fieldValue(current, fieldClock)
+	if err != nil {
+		return nil, err
+	}
+	currentClock := parseClock(currentClockRaw)
 	entries, err := snapshotEntries(changes, current, currentClock+1)
 	if err != nil {
 		return nil, err
@@ -207,37 +211,60 @@ func snapshotEntries(changes map[string]*string, base []gitx.TreeEntry, clock in
 }
 
 func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, createCommit *gitx.CommitInfo) (*Item, error) {
-	title := fieldValue(entries, fieldTitle)
+	title, err := fieldValue(entries, fieldTitle)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
 	if title == "" {
 		return nil, fmt.Errorf("item %s has no title (corrupt?)", id)
 	}
-	priority := Priority(fieldValue(entries, fieldPriority))
+	priorityRaw, err := fieldValue(entries, fieldPriority)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
+	listRaw, err := fieldValue(entries, fieldList)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
+	clockRaw, err := fieldValue(entries, fieldClock)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
 	return &Item{
 		ID:         id,
 		Ref:        ref,
 		Tip:        tip,
 		Title:      title,
-		List:       List(fieldValue(entries, fieldList)),
-		Priority:   priority,
+		List:       List(listRaw),
+		Priority:   Priority(priorityRaw),
 		OwnerName:  createCommit.AuthorName,
 		OwnerEmail: createCommit.AuthorEmail,
 		CreatedAt:  parseGitDate(createCommit.AuthorDate),
 		UpdatedAt:  parseGitDate(tipCommit.AuthorDate),
-		Clock:      parseClock(fieldValue(entries, fieldClock)),
+		Clock:      parseClock(clockRaw),
 	}, nil
 }
 
-func fieldValue(entries []gitx.TreeEntry, name string) string {
+// fieldValue looks up a named tree entry's blob content. Returns ("", nil)
+// when the field is genuinely absent (no entry with that name) — distinct
+// from ("", err) when the entry exists but its blob failed to read, which
+// used to be silently collapsed into the same empty-string result. That
+// masked real transient git errors (e.g. a concurrent gc/repack window)
+// as if the field had simply never been set, surfacing as a misleading
+// "has no title (corrupt?)" for an item that was actually fine — confirmed
+// 2026-07-31 by reading the same blob directly with `git cat-file -p`
+// moments later and getting valid content back.
+func fieldValue(entries []gitx.TreeEntry, name string) (string, error) {
 	for _, e := range entries {
 		if e.Name == name {
 			blob, err := gitx.CatBlob(e.Hash)
 			if err != nil {
-				return ""
+				return "", fmt.Errorf("reading %s blob %s: %w", name, e.Hash, err)
 			}
-			return blob
+			return blob, nil
 		}
 	}
-	return ""
+	return "", nil
 }
 
 func strPtr(s string) *string { return &s }
