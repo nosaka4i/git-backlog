@@ -41,6 +41,11 @@ func newShowCmd() *cobra.Command {
 			fmt.Printf("title:    %s\n", item.Title)
 			fmt.Printf("list:     %s\n", item.List)
 			fmt.Printf("priority: %s\n", priority)
+			comment := "(none)"
+			if item.Comment != "" {
+				comment = item.Comment
+			}
+			fmt.Printf("comment:  %s\n", comment)
 			fmt.Printf("owner:    %s <%s>\n", item.OwnerName, item.OwnerEmail)
 			fmt.Printf("created:  %s\n", item.CreatedAt.Format("2006-01-02 15:04:05 -0700"))
 			fmt.Println()

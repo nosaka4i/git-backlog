@@ -9,7 +9,7 @@ import (
 
 func TestTitleRenames(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestTitleRenames(t *testing.T) {
 
 func TestTitleRejectsEmpty(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("x", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("x", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

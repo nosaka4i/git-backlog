@@ -89,8 +89,18 @@ const (
 	fieldTitle    = "title"
 	fieldList     = "list"
 	fieldPriority = "priority"
+	fieldComment  = "comment"
 	fieldClock    = "clock"
 )
+
+// Identity overrides the git author/committer for a single operation,
+// instead of using the ambient git config — for recording an edit as made
+// by an automation/agent rather than whoever's git identity is configured
+// locally. See docs/design/git-backlog.md's "Agent identity" section.
+type Identity struct {
+	Name  string
+	Email string
+}
 
 const refNamespace = "refs/backlog/"
 
@@ -112,6 +122,7 @@ type Item struct {
 	Title      string
 	List       List
 	Priority   Priority
+	Comment    string // freeform, optional; "" means never set
 	OwnerName  string
 	OwnerEmail string
 	CreatedAt  time.Time

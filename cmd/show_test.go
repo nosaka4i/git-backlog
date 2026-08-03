@@ -10,11 +10,11 @@ import (
 
 func TestShowHumanOutput(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetList(item.ID, store.ListCurrent); err != nil {
+	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runCmd(t, newShowCmd(), item.ID)
@@ -38,7 +38,7 @@ func TestShowHumanOutput(t *testing.T) {
 
 func TestShowUnsetPriorityPrintsUnset(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,11 +53,11 @@ func TestShowUnsetPriorityPrintsUnset(t *testing.T) {
 
 func TestShowJSONIncludesHistory(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetList(item.ID, store.ListCurrent); err != nil {
+	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runCmd(t, newShowCmd(), item.ID, "--json")

@@ -9,7 +9,7 @@ import (
 
 func TestPrioritySetsAndClears(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestPrioritySetsAndClears(t *testing.T) {
 
 func TestPriorityRejectsInvalidValue(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("x", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("x", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,12 @@ import (
 )
 
 // CreateItem records a new item's create operation and returns it.
-func CreateItem(title string, list List, priority Priority) (*Item, error) {
+// identity is nil to author it from the ambient git config, or an
+// override — see Identity. Because the create commit's author becomes the
+// item's permanent owner (no reassignment, ever — see Schema in the
+// design doc), identity here doesn't just attribute one op like it does
+// for the other Set* functions: it decides who owns the item forever.
+func CreateItem(title string, list List, priority Priority, identity *Identity) (*Item, error) {
 	entries, err := snapshotEntries(map[string]*string{
 		fieldTitle:    &title,
 		fieldList:     strPtr(string(list)),
@@ -21,7 +26,12 @@ func CreateItem(title string, list List, priority Priority) (*Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building create tree: %w", err)
 	}
-	commit, err := gitx.CommitTree(tree, nil, "add: "+title)
+	var commit string
+	if identity != nil {
+		commit, err = gitx.CommitTreeAs(tree, nil, "add: "+title, identity.Name, identity.Email)
+	} else {
+		commit, err = gitx.CommitTree(tree, nil, "add: "+title)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("creating item: %w", err)
 	}
@@ -107,30 +117,44 @@ func AllItems() ([]*Item, error) {
 	return items, nil
 }
 
-// SetList records a list-change operation.
-func SetList(idPrefix string, list List) (*Item, error) {
-	return applyOp(idPrefix, map[string]*string{fieldList: strPtr(string(list))}, "list: "+string(list))
+// SetList records a list-change operation. identity is nil to use the
+// ambient git config, or an override (e.g. for an agent acting on
+// someone's behalf) — see Identity.
+func SetList(idPrefix string, list List, identity *Identity) (*Item, error) {
+	return applyOp(idPrefix, map[string]*string{fieldList: strPtr(string(list))}, "list: "+string(list), identity)
 }
 
 // SetPriority records a priority-change operation. priority == PriorityNone
-// clears it.
-func SetPriority(idPrefix string, priority Priority) (*Item, error) {
+// clears it. identity is nil to use the ambient git config, or an override
+// — see Identity.
+func SetPriority(idPrefix string, priority Priority, identity *Identity) (*Item, error) {
 	msg := "priority: none"
 	if priority != PriorityNone {
 		msg = "priority: " + string(priority)
 	}
-	return applyOp(idPrefix, map[string]*string{fieldPriority: priorityPtr(priority)}, msg)
+	return applyOp(idPrefix, map[string]*string{fieldPriority: priorityPtr(priority)}, msg, identity)
 }
 
-// SetTitle records a title-edit operation.
-func SetTitle(idPrefix string, title string) (*Item, error) {
-	return applyOp(idPrefix, map[string]*string{fieldTitle: &title}, "edit: "+title)
+// SetTitle records a title-edit operation. identity is nil to use the
+// ambient git config, or an override — see Identity.
+func SetTitle(idPrefix string, title string, identity *Identity) (*Item, error) {
+	return applyOp(idPrefix, map[string]*string{fieldTitle: &title}, "edit: "+title, identity)
+}
+
+// SetComment records a comment-edit operation. The new text fully replaces
+// any previous comment, same as SetTitle — the prior text remains visible
+// via the item's op-log history. identity is nil to use the ambient git
+// config, or an override — see Identity.
+func SetComment(idPrefix string, comment string, identity *Identity) (*Item, error) {
+	return applyOp(idPrefix, map[string]*string{fieldComment: &comment}, "comment: "+comment, identity)
 }
 
 // applyOp writes a new op-log commit on top of idPrefix's current tip,
 // changing the given fields (nil value removes the field) and returns the
-// item's new state.
-func applyOp(idPrefix string, changes map[string]*string, message string) (*Item, error) {
+// item's new state. identity is nil to author the commit from the ambient
+// git config, or a non-nil override to author/commit it as that identity
+// instead (e.g. an automation/agent acting on someone's behalf).
+func applyOp(idPrefix string, changes map[string]*string, message string, identity *Identity) (*Item, error) {
 	id, err := ResolveID(idPrefix)
 	if err != nil {
 		return nil, err
@@ -161,7 +185,12 @@ func applyOp(idPrefix string, changes map[string]*string, message string) (*Item
 	if err != nil {
 		return nil, fmt.Errorf("building op tree: %w", err)
 	}
-	commit, err := gitx.CommitTree(tree, []string{tip}, message)
+	var commit string
+	if identity != nil {
+		commit, err = gitx.CommitTreeAs(tree, []string{tip}, message, identity.Name, identity.Email)
+	} else {
+		commit, err = gitx.CommitTree(tree, []string{tip}, message)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("recording operation: %w", err)
 	}
@@ -226,6 +255,10 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
+	comment, err := fieldValue(entries, fieldComment)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
 	clockRaw, err := fieldValue(entries, fieldClock)
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
@@ -237,6 +270,7 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 		Title:      title,
 		List:       List(listRaw),
 		Priority:   Priority(priorityRaw),
+		Comment:    comment,
 		OwnerName:  createCommit.AuthorName,
 		OwnerEmail: createCommit.AuthorEmail,
 		CreatedAt:  parseGitDate(createCommit.AuthorDate),

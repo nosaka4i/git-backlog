@@ -35,13 +35,15 @@ git backlog sync
 | Command | Effect |
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
-| `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2]` | Create an item (defaults to `--list backlog`, unset priority) |
+| `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
 | `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, oldest-first within each group (empty lists shown as `(empty)`) |
 | `show <id> [--json]` | Full item state plus its complete op-log history |
 | `history [--list <value>] [--priority <value>] [--json]` | Chronological activity trail across every item, newest first |
-| `list <id> <backlog\|current\|closed>` | Move an item between lists (closing an item is just `list <id> closed`) |
-| `priority <id> <p0\|p1\|p2\|none>` | Set or clear priority |
-| `title <id> "<new title>"` | Rename an item |
+| `list <id> <backlog\|current\|closed> [--as-agent]` | Move an item between lists (closing an item is just `list <id> closed`) |
+| `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |
+| `title <id> "<new title>" [--as-agent]` | Rename an item |
+| `comment <id> "<text>" [--as-agent]` | Set an item's comment (empty string clears it) |
+| `comment show <id> [--json]` | Show an item's comments, newest first |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
 | `version` | Print the git-backlog version |
 
@@ -58,6 +60,63 @@ closed section to the 10 most recently updated items by default (a
 `... and N more` note shows how many are hidden). `--closed-limit 0`
 removes the cap; `--list closed` also shows the full closed list, since
 asking for it specifically is already an explicit, narrow request.
+
+`comment` is a single freeform field, edited the same way as `title` (each
+edit replaces the value; `comment <id> ""` clears it). `show <id>` and
+`history` only render `Updated comment`/`Cleared comment` for it, same as
+every other field — to read past comment text, use `comment show <id>`,
+which walks the op-log and prints just the comment changes, newest first
+(matching `history`'s convention).
+
+### Agent identity
+
+Every op-log commit's author comes from whatever git identity is ambient
+when the command runs — same as any plain `git commit`. If a human and
+an AI coding agent both drive `git backlog` from the same checkout, every
+op either of them makes gets attributed to the *same* identity, so e.g.
+back-and-forth `comment`s look like one person talking to themselves.
+
+Fix: configure a separate identity for the agent (local repo config, no
+git-backlog wrapper command needed — same as `user.name`/`user.email`):
+```
+git config backlog.agent.name "Claude"
+git config backlog.agent.email "noreply@anthropic.com"
+```
+(`noreply@anthropic.com` is just an example — any name/email works, no
+real account or mailbox required; see below.)
+
+then pass `--as-agent` on `add`/`title`/`priority`/`list`/`comment` to
+record that specific operation under the agent's identity instead:
+```
+git backlog comment <id> "looks flaky under -race" --as-agent
+```
+Without `--as-agent`, nothing changes — commands attribute to the
+ambient identity exactly as before. `--as-agent` errors out immediately
+if `backlog.agent.name`/`backlog.agent.email` aren't configured, rather
+than silently falling back to the ambient identity. It does **not**
+require a separate GitHub account — git-backlog never touches GitHub's
+API, only plain git commit authorship, which git already supports for
+any two contributors regardless of whether their email belongs to a real
+registered account anywhere — `sync`/`git push` never validate a commit's
+author/committer against any account system, so an agent identity that
+doesn't correspond to a real account anywhere never causes a push to
+fail. (On GitHub specifically, an author email that doesn't match a
+verified account just renders as plain gray-icon text instead of a
+linked avatar in the web UI — cosmetic only, no functional difference.)
+
+On `title`/`priority`/`list`/`comment`, `--as-agent` only affects that
+one op-log entry — it never touches an item's `owner` (fixed permanently
+from the *create* commit, per the design doc's "no reassignment" rule).
+`add` is the one exception: since the create commit's author **is** the
+item's owner, `add --as-agent` makes the agent the item's permanent
+owner — which is correct, not a special case, once you define `owner` as
+"whoever physically ran the command," not "whoever thought of it." If you
+ask the agent to file an item on your behalf and it runs
+`add --as-agent`, the agent legitimately is who added it.
+
+See [`docs/design/git-backlog.md`](docs/design/git-backlog.md)'s "Agent
+identity" section for the full rationale, including why this can't be
+applied retroactively to past comments.
 
 `history` flattens every item's op-log into one chronological feed —
 same `--list`/`--priority` filters as `all`, applied to items' *current*

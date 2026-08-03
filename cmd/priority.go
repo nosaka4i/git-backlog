@@ -8,7 +8,8 @@ import (
 )
 
 func newPriorityCmd() *cobra.Command {
-	return &cobra.Command{
+	var asAgent bool
+	cmd := &cobra.Command{
 		Use:   "priority <id> <p0|p1|p2|none>",
 		Short: "Set or clear an item's priority",
 		Args:  cobra.ExactArgs(2),
@@ -20,7 +21,11 @@ func newPriorityCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := store.SetPriority(args[0], p)
+			identity, err := resolveAgentIdentity(asAgent)
+			if err != nil {
+				return err
+			}
+			item, err := store.SetPriority(args[0], p, identity)
 			if err != nil {
 				return err
 			}
@@ -28,4 +33,6 @@ func newPriorityCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, asAgentFlagUsage)
+	return cmd
 }

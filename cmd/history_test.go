@@ -18,19 +18,19 @@ const gitTimestampResolution = 1100 * time.Millisecond
 
 func TestHistoryFlatChronologicalAcrossItems(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	a, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone)
+	a, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone)
+	b, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(gitTimestampResolution)
-	if _, err := store.SetList(a.ID, store.ListCurrent); err != nil {
+	if _, err := store.SetList(a.ID, store.ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetPriority(b.ID, store.PriorityP0); err != nil {
+	if _, err := store.SetPriority(b.ID, store.PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -42,10 +42,10 @@ func TestHistoryFlatChronologicalAcrossItems(t *testing.T) {
 	if strings.Count(out, "Added item") != 2 {
 		t.Fatalf("expected 2 \"Added item\" entries:\n%s", out)
 	}
-	if !strings.Contains(out, "fix flaky test  Moved to current") {
+	if !strings.Contains(out, "Title: fix flaky test (Moved to current)") {
 		t.Fatalf("missing the list-change entry:\n%s", out)
 	}
-	if !strings.Contains(out, "write docs  Updated priority to p0") {
+	if !strings.Contains(out, "Title: write docs (Updated priority to p0)") {
 		t.Fatalf("missing the priority-change entry:\n%s", out)
 	}
 
@@ -70,14 +70,14 @@ func maxIndex(s string, subs ...string) int {
 
 func TestHistoryShowsClearedPriorityAndRename(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetPriority(item.ID, store.PriorityNone); err != nil {
+	if _, err := store.SetPriority(item.ID, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetTitle(item.ID, "fix the flaky auth test"); err != nil {
+	if _, err := store.SetTitle(item.ID, "fix the flaky auth test", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,11 +95,11 @@ func TestHistoryShowsClearedPriorityAndRename(t *testing.T) {
 
 func TestHistoryListAndPriorityFilters(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	inCurrent, err := store.CreateItem("in current", store.ListCurrent, store.PriorityP0)
+	inCurrent, err := store.CreateItem("in current", store.ListCurrent, store.PriorityP0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	inBacklog, err := store.CreateItem("in backlog", store.ListBacklog, store.PriorityP1)
+	inBacklog, err := store.CreateItem("in backlog", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,12 +136,12 @@ func TestHistoryInvalidFilters(t *testing.T) {
 
 func TestHistoryJSON(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(gitTimestampResolution)
-	if _, err := store.SetList(item.ID, store.ListCurrent); err != nil {
+	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -189,7 +189,7 @@ func TestHistoryMergeCommitShowsMultipleActionsUnderOneHeader(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,12 +204,12 @@ func TestHistoryMergeCommitShowsMultipleActionsUnderOneHeader(t *testing.T) {
 	if _, err := store.Sync("origin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetPriority(item.ID, store.PriorityP0); err != nil {
+	if _, err := store.SetPriority(item.ID, store.PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	chdirTo(t, repoA)
-	if _, err := store.SetList(item.ID, store.ListCurrent); err != nil {
+	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 

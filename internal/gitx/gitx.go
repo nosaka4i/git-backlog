@@ -6,18 +6,28 @@ package gitx
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
 
 // Run executes a git command and returns trimmed stdout.
 func Run(args ...string) (string, error) {
-	return RunStdin("", args...)
+	return run(nil, "", args...)
 }
 
 // RunStdin executes a git command, feeding stdin, and returns trimmed stdout.
 func RunStdin(stdin string, args ...string) (string, error) {
+	return run(nil, stdin, args...)
+}
+
+// run executes a git command with an optional environment override (nil
+// inherits the process environment) and optional stdin.
+func run(env []string, stdin string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+	if env != nil {
+		cmd.Env = env
+	}
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
@@ -135,7 +145,8 @@ func parseIdentityLine(s string) (name, email, date string) {
 	return
 }
 
-// CommitTree creates a commit object and returns its hash.
+// CommitTree creates a commit object and returns its hash. Author and
+// committer come from the ambient git config, same as any other commit.
 func CommitTree(tree string, parents []string, message string) (string, error) {
 	args := []string{"commit-tree", tree}
 	for _, p := range parents {
@@ -143,6 +154,26 @@ func CommitTree(tree string, parents []string, message string) (string, error) {
 	}
 	args = append(args, "-m", message)
 	return Run(args...)
+}
+
+// CommitTreeAs is CommitTree, but with the author and committer identity
+// overridden to name/email instead of the ambient git config — used when
+// an operation is being recorded on behalf of an automation/agent rather
+// than whoever's git identity happens to be configured locally. Both
+// author and committer are set (not just author) so `git log`/`git show`
+// on the raw commit object are consistent too, not just what git-backlog
+// itself displays.
+func CommitTreeAs(tree string, parents []string, message, name, email string) (string, error) {
+	args := []string{"commit-tree", tree}
+	for _, p := range parents {
+		args = append(args, "-p", p)
+	}
+	args = append(args, "-m", message)
+	env := append(os.Environ(),
+		"GIT_AUTHOR_NAME="+name, "GIT_AUTHOR_EMAIL="+email,
+		"GIT_COMMITTER_NAME="+name, "GIT_COMMITTER_EMAIL="+email,
+	)
+	return run(env, "", args...)
 }
 
 // UpdateRef sets ref to newHash. If oldHash is non-empty, git enforces a

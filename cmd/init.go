@@ -23,7 +23,7 @@ func newInitCmd() *cobra.Command {
 			if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 				return err
 			}
-			fmt.Println("initialized backlog (refs/backlog/*)")
+			fmt.Println("initialized backlog")
 			return nil
 		},
 	}

@@ -31,12 +31,25 @@ Five fields, nothing else:
 | `list`     | `backlog` \| `current` \| `closed` | named after Trello's terminology; this IS the field that tracks bucket membership, no separate "status" concept |
 | `priority` | `p0` \| `p1` \| `p2` \| unset       | unset ≠ a literal "none" value — the entry is simply absent |
 | `owner`    | git identity (name + email)        | read from the create commit's author field, fixed permanently, no reassignment |
+| `comment`  | string, optional                   | freeform "why," not threaded — see below |
 | `id`       | content hash (of the create commit)| permanent forever, displayed as an auto-growing short prefix (`git rev-parse --short` convention) |
 
 Explicitly excluded (see requirements doc's non-goals for the reasoning
-behind each): label/type, references/dependencies, comments/notes,
-ordinal/fractional-index ranking (Trello drag-to-reorder), owner
-reassignment.
+behind each): label/type, references/dependencies, ordinal/fractional-index
+ranking (Trello drag-to-reorder), owner reassignment.
+
+`comment` was originally on this excluded list too ("comments/notes"), on
+the theory that WHY/HOW belongs in GitHub Issues or a
+brainstorm/requirements/design doc, not the backlog item. Revisited: if the
+backlog is useful enough on its own, it shouldn't need to overload Issues
+just to hold a line of context — that pushes Issues back into being a pure
+bug tracker, which is closer to what it was originally for. The scope kept
+narrow, though: `comment` is a single freeform field, edited the same way
+as `title` (each edit fully replaces the value; no threading, no per-note
+authorship beyond whichever op-log commit made that edit). It does not
+reopen the rest of the excluded list — this is deliberately the smallest
+version of "why," not a move toward comment threads, labels, or
+dependencies.
 
 ## Storage model
 
@@ -132,9 +145,13 @@ command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`/
 
 **Create**
 ```
-git backlog add "<title>" [--list backlog|current|closed] [--priority p0|p1|p2]
+git backlog add "<title>" [--list backlog|current|closed] [--priority p0|p1|p2] [--as-agent]
 ```
 Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
+`--as-agent` — see Agent identity below — is meaningfully different here
+than on the Update commands: since the create commit's author becomes
+the item's permanent `owner`, `add --as-agent` doesn't just attribute one
+op, it makes the agent the item's owner forever.
 
 **Read**
 ```
@@ -184,7 +201,21 @@ op.
 git backlog list <id> <backlog|current|closed>
 git backlog priority <id> <p0|p1|p2|none>
 git backlog title <id> "<new title>"
+git backlog comment <id> "<text>"
+git backlog comment show <id> [--json]
 ```
+`comment` follows the same replace-on-edit shape as `title` — passing `""`
+clears it. `show <id>`'s own history only renders `Updated
+comment`/`Cleared comment` (consistent with how it never inlines a
+renamed title either), so it doesn't surface past comment text by itself.
+`comment show <id>` is the dedicated read path: it walks the op-log,
+picks out just the `comment` field's changes, and prints them newest
+first (matching `history`'s convention) with timestamp/commit/author, so
+past comments read like a thread — without needing a real comment-thread
+data structure, since every edit was already a real git commit. Nested
+under `comment` rather than a
+separate top-level verb, the same way `git remote add`/`git remote show`
+share one namespace instead of being unrelated top-level commands.
 
 **Sync / Init**
 ```
@@ -196,6 +227,163 @@ git backlog version
 namespace). `sync` pushes/fetches that namespace against the configured
 remote, reconciling divergent op-logs automatically — see Sync & conflict
 resolution above. `version` prints the build version.
+
+## Agent identity
+
+**The problem**: every op-log commit's author comes from whatever git
+identity is ambient when the command runs (`internal/gitx.CommitTree`
+shells out to `git commit-tree` with no author override, same as any
+plain `git commit`). If a human and an AI coding agent both drive
+`git backlog` from the same checkout — the common case, since the agent
+runs git commands as the human's own shell/git config — every op either
+of them makes carries the *same* author. Concretely: if both add
+`comment`s to the same item, `comment show <id>` renders them
+indistinguishably, as if one person were talking to themselves.
+
+**Not a GitHub-account problem**: the natural first instinct is "give the
+bot its own GitHub account," the way `dependabot[bot]`/
+`github-actions[bot]` get a `[bot]` badge on github.com. That's solving
+the wrong layer. git-backlog never calls GitHub's API — it only ever sees
+plain git commit authorship (`author <name> <email> <date>` in the
+commit object), which is metadata git already tracks for *any* two
+contributors, bot or human, with zero relationship to whether `<email>`
+belongs to a real, registered account anywhere. No GitHub account,
+"machine user" or otherwise, is required.
+
+**The mechanism**: `internal/gitx.CommitTreeAs(tree, parents, message,
+name, email)` runs `git commit-tree` with `GIT_AUTHOR_NAME`/
+`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL` set in the
+subprocess environment, overriding the ambient git config for that one
+commit only — nothing durable is changed, no repo or global git config is
+touched, and every other command's commits are unaffected. Both author
+*and* committer are overridden (not just author) so a raw `git log`/
+`git show` on the commit object is fully consistent too, not just what
+git-backlog itself chooses to display — otherwise someone inspecting the
+repo with plain git (exactly the kind of "found out in an obscure place"
+surprise worth avoiding) would see a mismatched author/committer pair and
+have no idea why.
+
+**Setup** (plain git config, no git-backlog wrapper command for it —
+consistent with how `user.name`/`user.email` themselves are configured):
+```
+git config backlog.agent.name "Claude"
+git config backlog.agent.email "noreply@anthropic.com"
+```
+Local (repo) config, not global — the same agent identity doesn't
+necessarily make sense in every repo, and local config is what
+`backlog.init` itself already uses.
+
+**Usage**: `--as-agent` on `add` and the field-setter commands — `title`,
+`priority`, `list`, `comment` — reads `backlog.agent.name`/
+`backlog.agent.email` and records that operation under the agent's
+identity instead of the ambient one:
+```
+git backlog comment <id> "<text>" --as-agent
+```
+Without `--as-agent`, behavior is unchanged — commands attribute to
+whatever git identity was already ambient, exactly as before this
+feature existed. Deliberately *not* a global mode/env var that silently
+changes every command's behavior — each invocation opts in explicitly,
+so `comment show <id>`'s author column stays a reliable, per-op signal
+of who (or what) actually made each change, not just what the last
+`git config` toggle happened to be set to.
+
+If `--as-agent` is passed but `backlog.agent.name`/`backlog.agent.email`
+aren't configured, the command errors immediately (before writing
+anything) rather than silently falling back to the ambient identity —
+falling back silently would defeat the entire point, since the whole
+failure mode being avoided here is misattributed authorship going
+unnoticed.
+
+**What this does *not* affect, except on `add`**: an item's `owner`
+(`OwnerName`/`OwnerEmail`) is read from the *create* commit's author
+specifically and is permanent by design (see Schema above — "no
+reassignment") — using `--as-agent` on a later `comment`/`priority`/
+`list`/`title` op never changes who owns the item, only who's credited
+for that one op-log entry. `add --as-agent` is the deliberate exception:
+because the create commit's author *is* the owner, using `--as-agent`
+there makes the agent the item's permanent owner, not just that one
+op's author. This isn't a special case bolted on — it falls out of
+`owner`'s existing definition once you read it literally: "read from the
+create commit's author field" already means *whoever physically ran
+`add`*, not whoever came up with the idea for the item. Asking the agent
+to file an item on your behalf and having it run `add --as-agent` means
+the agent legitimately is who added it.
+
+**Not retroactive**: `--as-agent` only affects operations recorded from
+that point forward. There's no supported way to relabel a *past*
+op-log commit's author after the fact — doing so would require rewriting
+that commit and every descendant commit after it (a commit's hash is
+derived from its content, author included, so "editing" it is always
+actually "replace with a new object and every commit after it"), and if
+it's the item's *create* commit, rewriting it changes the item's
+permanent ID outright, since the ID **is** that commit's hash. Consistent
+with every other place in this design that treats the op-log as
+append-only and recovers forward, never by rewriting history (see Sync &
+conflict resolution above).
+
+## Schema evolution & version compatibility
+
+**No migration from other tools.** git-backlog doesn't import from
+Trello/Jira/GitHub Issues/etc. — `init` starts empty. This is a
+deliberate non-goal, not a gap: importing means mapping someone else's
+schema onto this one, which is a per-source problem, not a general
+feature this tool needs to own. Every backlog here starts fresh.
+
+**No migration between git-backlog schema versions either — because none
+is ever needed for the kind of change made so far.** The schema table
+above has already grown once (`comment` added after v1 shipped) without
+any migration step, and that's not a coincidence: the tree-of-named-
+optional-entries storage model (see Storage model above) makes purely
+additive schema changes safe in both directions, by construction, not by
+convention someone has to remember to follow. Verified against the
+actual code, not just asserted:
+
+- **Old data, new binary**: `fieldValue` (`internal/store/item.go`)
+  treats a tree entry that doesn't exist as `""` — the same "absent, not
+  a literal empty value" semantics `priority` already relies on. An item
+  written before `comment` existed simply has no `comment` entry, so it
+  reads as unset. No backfill, no default-value migration.
+- **New data, old binary**: an older binary simply never asks
+  `fieldValue` for a field name it doesn't know about, so it's invisible
+  to `show`/`all` but not touched, corrupted, or lost — it's still sitting
+  right there in the tree object waiting for a binary that knows to look
+  for it.
+- **Mixed-version `sync`**: the case most likely to actually happen (a
+  team upgrades gradually, not atomically) is also safe, verified by
+  reading `mergeItem` (`internal/store/sync.go`) directly rather than
+  assuming: it builds `merged` from whatever entries exist in the base
+  tree and keys `touches` by whatever `DiffTree` reports changed —
+  nowhere does it enumerate "the known fields." An old binary that has
+  never heard of `comment` still correctly carries a `comment` change
+  forward through a merge (right clock-value winner, right tiebreak),
+  purely because the algorithm operates on raw entry names, not a
+  hardcoded field list. Old binaries can safely participate in `sync`
+  with new ones — not merely tolerate it.
+- **Unknown fields in `history`/`show`**: `actionLine` (`cmd/action.go`)
+  has a `default: return field + ": " + value` fallback for any field
+  name it doesn't have a named case for. This predates `comment` — it
+  was written in from the start for exactly this situation, so an old
+  binary rendering a newer item's op-log degrades to a plain `field:
+  value` line instead of erroring or silently dropping the entry.
+- **Bug fixes** (as opposed to schema/feature changes) are logic-only —
+  e.g. the fix that stopped `fieldValue` from silently swallowing a
+  transient `git cat-file` read error into an empty string (see git log)
+  changed nothing about what's written to git objects. Upgrading past a
+  bug fix is never a format concern, only old data ever behaving
+  differently is (never happened yet — no fix so far has changed how
+  already-written data is interpreted).
+
+**Consequence**: no explicit schema-version field (a `schema-version`
+tree entry, or similar) exists, and none is being added speculatively.
+One would only earn its keep for a genuinely *breaking* change — renaming
+an existing field, or redefining what an existing field's value means
+(e.g. if `priority`'s tier values were ever redefined) — not for adding
+a new optional field, which is already safe for free by the mechanisms
+above. That's a real risk to keep in mind for the future, but not one
+that exists yet, and building version-negotiation machinery for a
+breaking change that hasn't been designed yet would be speculative
+complexity with no current payoff.
 
 ## Monorepo scoping: considered and closed
 

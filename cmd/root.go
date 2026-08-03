@@ -29,6 +29,7 @@ func init() {
 		newListCmd(),
 		newPriorityCmd(),
 		newTitleCmd(),
+		newCommentCmd(),
 		newSyncCmd(),
 		newVersionCmd(),
 	)

@@ -21,6 +21,7 @@ type jsonItem struct {
 	Title     string    `json:"title"`
 	List      string    `json:"list"`
 	Priority  string    `json:"priority,omitempty"`
+	Comment   string    `json:"comment,omitempty"`
 	Owner     jsonOwner `json:"owner"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -31,6 +32,7 @@ func toJSONItem(it *store.Item) jsonItem {
 		Title:     it.Title,
 		List:      string(it.List),
 		Priority:  string(it.Priority),
+		Comment:   it.Comment,
 		Owner:     jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
 		CreatedAt: it.CreatedAt,
 	}
@@ -84,6 +86,16 @@ type jsonHistoryEntry struct {
 	Title   string       `json:"title"`
 	Author  jsonOwner    `json:"author"`
 	Changes []jsonChange `json:"changes"`
+}
+
+// jsonCommentEntry is one comment-field edit in an item's op-log, as
+// printed by `comment show --json`.
+type jsonCommentEntry struct {
+	When    time.Time `json:"when"`
+	Commit  string    `json:"commit"`
+	Author  jsonOwner `json:"author"`
+	Text    string    `json:"text,omitempty"`
+	Cleared bool      `json:"cleared,omitempty"`
 }
 
 func toJSONChanges(changes []store.FieldChange) []jsonChange {

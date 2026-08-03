@@ -58,7 +58,7 @@ func TestSyncAdoptsItemsFromRemote(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestSyncFastForwards(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestSyncFastForwards(t *testing.T) {
 	}
 
 	chdir(t, fx.repoA)
-	if _, err := SetPriority(item.ID, PriorityP0); err != nil {
+	if _, err := SetPriority(item.ID, PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Sync("origin"); err != nil {
@@ -133,7 +133,7 @@ func TestSyncMergesConcurrentEditsToDifferentFields(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,12 +145,12 @@ func TestSyncMergesConcurrentEditsToDifferentFields(t *testing.T) {
 	if _, err := Sync("origin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SetPriority(item.ID, PriorityP0); err != nil {
+	if _, err := SetPriority(item.ID, PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	chdir(t, fx.repoA)
-	if _, err := SetList(item.ID, ListCurrent); err != nil {
+	if _, err := SetList(item.ID, ListCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -201,7 +201,7 @@ func TestSyncSameFieldConflictConvergesDeterministically(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,11 +214,11 @@ func TestSyncSameFieldConflictConvergesDeterministically(t *testing.T) {
 	}
 
 	chdir(t, fx.repoA)
-	if _, err := SetPriority(item.ID, PriorityP1); err != nil {
+	if _, err := SetPriority(item.ID, PriorityP1, nil); err != nil {
 		t.Fatal(err)
 	}
 	chdir(t, fx.repoB)
-	if _, err := SetPriority(item.ID, PriorityP2); err != nil {
+	if _, err := SetPriority(item.ID, PriorityP2, nil); err != nil {
 		t.Fatal(err)
 	}
 

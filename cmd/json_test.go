@@ -10,7 +10,7 @@ import (
 
 func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,8 +21,18 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	if strings.Contains(string(b), `"priority"`) {
 		t.Fatalf("expected priority omitted from JSON, got %s", b)
 	}
+	if strings.Contains(string(b), `"comment"`) {
+		t.Fatalf("expected unset comment omitted from JSON, got %s", b)
+	}
 
-	item2, err := store.CreateItem("ship release", store.ListCurrent, store.PriorityP0)
+	item2, err := store.CreateItem("ship release", store.ListCurrent, store.PriorityP0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetComment(item2.ID, "needs sign-off from bob", nil); err != nil {
+		t.Fatal(err)
+	}
+	item2, err = store.LoadItem(item2.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,6 +47,9 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	if decoded.ID != item2.ID || decoded.Title != item2.Title || decoded.List != "current" || decoded.Priority != "p0" {
 		t.Fatalf("decoded = %+v", decoded)
 	}
+	if decoded.Comment != "needs sign-off from bob" {
+		t.Fatalf("decoded.Comment = %q", decoded.Comment)
+	}
 	if decoded.Owner.Name != "alice" || decoded.Owner.Email != "alice@example.com" {
 		t.Fatalf("owner = %+v", decoded.Owner)
 	}
@@ -44,11 +57,11 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 
 func TestToJSONHistoryMarksRemovedFields(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1)
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetPriority(item.ID, store.PriorityNone); err != nil {
+	if _, err := store.SetPriority(item.ID, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
 	history, err := store.History(item.ID)

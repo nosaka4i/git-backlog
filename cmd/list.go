@@ -8,7 +8,8 @@ import (
 )
 
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	var asAgent bool
+	cmd := &cobra.Command{
 		Use:   "list <id> <backlog|current|closed>",
 		Short: "Move an item to a different list",
 		Args:  cobra.ExactArgs(2),
@@ -20,7 +21,11 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := store.SetList(args[0], l)
+			identity, err := resolveAgentIdentity(asAgent)
+			if err != nil {
+				return err
+			}
+			item, err := store.SetList(args[0], l, identity)
 			if err != nil {
 				return err
 			}
@@ -28,4 +33,6 @@ func newListCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, asAgentFlagUsage)
+	return cmd
 }

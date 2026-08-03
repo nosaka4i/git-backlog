@@ -65,7 +65,7 @@ func newHistoryCmd() *cobra.Command {
 				fmt.Printf("%s  %s  %s <%s>\n",
 					e.op.When.Format("2006-01-02 15:04:05 -0700"), e.op.Commit[:12], e.op.AuthorName, e.op.AuthorEmail)
 				for _, line := range opActionLines(e.op) {
-					fmt.Printf("    %s  %s\n", truncate(e.item.Title, 60), line)
+					fmt.Printf("    Title: %s (%s)\n", truncate(e.item.Title, 60), line)
 				}
 				fmt.Println()
 			}

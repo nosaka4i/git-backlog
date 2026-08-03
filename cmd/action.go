@@ -20,6 +20,11 @@ func actionLine(field string, removed bool, value string) string {
 		return "Updated priority to " + value
 	case "title":
 		return "Renamed item"
+	case "comment":
+		if removed {
+			return "Cleared comment"
+		}
+		return "Updated comment"
 	default:
 		return field + ": " + value
 	}

@@ -11,13 +11,13 @@ import (
 
 func TestAllGroupsByListThenPriority(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := store.CreateItem("backlog p1 item", store.ListBacklog, store.PriorityP1); err != nil {
+	if _, err := store.CreateItem("backlog p1 item", store.ListBacklog, store.PriorityP1, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("backlog unprioritized item", store.ListBacklog, store.PriorityNone); err != nil {
+	if _, err := store.CreateItem("backlog unprioritized item", store.ListBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("current p0 item", store.ListCurrent, store.PriorityP0); err != nil {
+	if _, err := store.CreateItem("current p0 item", store.ListCurrent, store.PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,10 +50,10 @@ func TestAllGroupsByListThenPriority(t *testing.T) {
 
 func TestAllListFilterShowsOnlyThatList(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := store.CreateItem("in backlog", store.ListBacklog, store.PriorityNone); err != nil {
+	if _, err := store.CreateItem("in backlog", store.ListBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("in current", store.ListCurrent, store.PriorityNone); err != nil {
+	if _, err := store.CreateItem("in current", store.ListCurrent, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,10 +71,10 @@ func TestAllListFilterShowsOnlyThatList(t *testing.T) {
 
 func TestAllPriorityFilter(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := store.CreateItem("p0 item", store.ListBacklog, store.PriorityP0); err != nil {
+	if _, err := store.CreateItem("p0 item", store.ListBacklog, store.PriorityP0, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("p1 item", store.ListBacklog, store.PriorityP1); err != nil {
+	if _, err := store.CreateItem("p1 item", store.ListBacklog, store.PriorityP1, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,7 +100,7 @@ func TestAllInvalidFiltersError(t *testing.T) {
 func createClosedItems(t *testing.T, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
-		item, err := store.CreateItem(fmt.Sprintf("closed item %d", i), store.ListClosed, store.PriorityNone)
+		item, err := store.CreateItem(fmt.Sprintf("closed item %d", i), store.ListClosed, store.PriorityNone, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,10 +158,10 @@ func TestAllListClosedBypassesCap(t *testing.T) {
 
 func TestAllJSONOutput(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := store.CreateItem("unprioritized", store.ListBacklog, store.PriorityNone); err != nil {
+	if _, err := store.CreateItem("unprioritized", store.ListBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("prioritized", store.ListBacklog, store.PriorityP2); err != nil {
+	if _, err := store.CreateItem("prioritized", store.ListBacklog, store.PriorityP2, nil); err != nil {
 		t.Fatal(err)
 	}
 

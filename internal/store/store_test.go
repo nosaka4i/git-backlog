@@ -61,7 +61,7 @@ func TestRefForIDFromRef(t *testing.T) {
 
 func TestCreateAndLoadItem(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestCreateAndLoadItem(t *testing.T) {
 
 func TestCreateItemDefaultsPriorityUnset(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("write docs", ListBacklog, PriorityNone)
+	item, err := CreateItem("write docs", ListBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,12 +115,12 @@ func TestResolveIDErrors(t *testing.T) {
 
 func TestSetListSetPriorityEdit(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	updated, err := SetList(item.ID, ListCurrent)
+	updated, err := SetList(item.ID, ListCurrent, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestSetListSetPriorityEdit(t *testing.T) {
 		t.Fatal("tip should have moved past the create commit after an update")
 	}
 
-	updated, err = SetPriority(item.ID, PriorityNone)
+	updated, err = SetPriority(item.ID, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestSetListSetPriorityEdit(t *testing.T) {
 		t.Fatalf("priority = %q, want cleared", updated.Priority)
 	}
 
-	updated, err = SetTitle(item.ID, "fix the flaky auth test")
+	updated, err = SetTitle(item.ID, "fix the flaky auth test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,11 +156,65 @@ func TestSetListSetPriorityEdit(t *testing.T) {
 	}
 }
 
+func TestSetComment(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Comment != "" {
+		t.Fatalf("comment should be unset on create, got %q", item.Comment)
+	}
+
+	updated, err := SetComment(item.ID, "flaky under -race, not otherwise", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Comment != "flaky under -race, not otherwise" {
+		t.Fatalf("comment = %q", updated.Comment)
+	}
+
+	updated, err = SetComment(item.ID, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Comment != "" {
+		t.Fatalf("comment should be cleared, got %q", updated.Comment)
+	}
+}
+
+func TestSetCommentAsAgentIdentity(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := &Identity{Name: "Claude", Email: "claude@example.com"}
+	updated, err := SetComment(item.ID, "flaky under -race", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The item's owner is fixed at creation and unaffected by an
+	// identity override on a later op.
+	if updated.OwnerName != "alice" || updated.OwnerEmail != "alice@example.com" {
+		t.Fatalf("owner should stay fixed at creation: got %s <%s>", updated.OwnerName, updated.OwnerEmail)
+	}
+
+	history, err := History(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := history[len(history)-1]
+	if last.AuthorName != "Claude" || last.AuthorEmail != "claude@example.com" {
+		t.Fatalf("last op author = %s <%s>, want the agent identity", last.AuthorName, last.AuthorEmail)
+	}
+}
+
 func TestAllItems(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	titles := []string{"a", "b", "c"}
 	for _, ttl := range titles {
-		if _, err := CreateItem(ttl, ListBacklog, PriorityNone); err != nil {
+		if _, err := CreateItem(ttl, ListBacklog, PriorityNone, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -175,14 +229,14 @@ func TestAllItems(t *testing.T) {
 
 func TestHistoryTracksEachOperation(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SetPriority(item.ID, PriorityP2); err != nil {
+	if _, err := SetPriority(item.ID, PriorityP2, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SetList(item.ID, ListClosed); err != nil {
+	if _, err := SetList(item.ID, ListClosed, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,11 +267,11 @@ func TestHistoryTracksEachOperation(t *testing.T) {
 
 func TestHistoryRecordsClearedField(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1)
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SetPriority(item.ID, PriorityNone); err != nil {
+	if _, err := SetPriority(item.ID, PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
 	history, err := History(item.ID)

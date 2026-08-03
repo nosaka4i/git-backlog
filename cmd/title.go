@@ -9,7 +9,8 @@ import (
 )
 
 func newTitleCmd() *cobra.Command {
-	return &cobra.Command{
+	var asAgent bool
+	cmd := &cobra.Command{
 		Use:   "title <id> <new title>",
 		Short: "Rename an item",
 		Args:  cobra.ExactArgs(2),
@@ -21,7 +22,11 @@ func newTitleCmd() *cobra.Command {
 			if title == "" {
 				return fmt.Errorf("title must not be empty")
 			}
-			item, err := store.SetTitle(args[0], title)
+			identity, err := resolveAgentIdentity(asAgent)
+			if err != nil {
+				return err
+			}
+			item, err := store.SetTitle(args[0], title, identity)
 			if err != nil {
 				return err
 			}
@@ -29,4 +34,6 @@ func newTitleCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, asAgentFlagUsage)
+	return cmd
 }

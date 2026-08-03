@@ -117,6 +117,46 @@ func TestCommitTreeAndCatCommit(t *testing.T) {
 	}
 }
 
+func TestCommitTreeAsOverridesIdentity(t *testing.T) {
+	chdirTempRepo(t)
+	h1, _ := HashBlob("hello")
+	tree, err := MkTree([]TreeEntry{{Name: "title", Hash: h1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := CommitTreeAs(tree, nil, "add: hello", "Agent", "agent@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ci, err := CatCommit(commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ci.AuthorName != "Agent" || ci.AuthorEmail != "agent@example.com" {
+		t.Fatalf("author = %s <%s>, want Agent <agent@example.com>", ci.AuthorName, ci.AuthorEmail)
+	}
+	committer, err := Run("show", "-s", "--format=%cn <%ce>", commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committer != "Agent <agent@example.com>" {
+		t.Fatalf("committer = %s, want Agent <agent@example.com>", committer)
+	}
+
+	// The ambient identity (from repo config) is untouched by the override.
+	commit2, err := CommitTree(tree, nil, "add: hello again")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ci2, err := CatCommit(commit2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ci2.AuthorName != "Test User" || ci2.AuthorEmail != "test@example.com" {
+		t.Fatalf("ambient author leaked override: %s <%s>", ci2.AuthorName, ci2.AuthorEmail)
+	}
+}
+
 func TestUpdateRefAndForEachRef(t *testing.T) {
 	chdirTempRepo(t)
 	h1, _ := HashBlob("x")
