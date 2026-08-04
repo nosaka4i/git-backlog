@@ -21,13 +21,23 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			var syncState *store.ItemSyncState
+			if remote, err := store.ResolveRemote(""); err == nil {
+				s, err := store.SyncState(item.ID, remote)
+				if err != nil {
+					return err
+				}
+				syncState = &s
+			}
 			if jsonFlag {
 				history, err := store.History(item.ID)
 				if err != nil {
 					return err
 				}
+				jitem := toJSONItem(item)
+				jitem.Sync = toJSONSyncState(syncState)
 				detail := jsonItemDetail{
-					jsonItem: toJSONItem(item),
+					jsonItem: jitem,
 					Tip:      item.Tip,
 					History:  toJSONHistory(history),
 				}
@@ -53,6 +63,7 @@ func newShowCmd() *cobra.Command {
 			fmt.Printf("comment:     %s\n", comment)
 			fmt.Printf("owner:       %s <%s>\n", item.OwnerName, item.OwnerEmail)
 			fmt.Printf("created:     %s\n", item.CreatedAt.Format("2006-01-02 15:04:05 -0700"))
+			fmt.Printf("sync:        %s\n", syncLine(syncState))
 			fmt.Println()
 			fmt.Println("history:")
 			history, err := store.History(item.ID)

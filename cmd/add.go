@@ -9,7 +9,7 @@ import (
 )
 
 func newAddCmd() *cobra.Command {
-	var listFlag, priorityFlag string
+	var listFlag, priorityFlag, descriptionFlag string
 	var asAgent bool
 	cmd := &cobra.Command{
 		Use:   "add <title>",
@@ -42,12 +42,25 @@ func newAddCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if descriptionFlag != "" {
+				// A second op-log entry (create, then a description edit),
+				// not a special "create with description" path — the same
+				// as running `describe` right after `add` by hand, just in
+				// one command. See docs/design/git-backlog.md's "Create"
+				// section for why `description` doesn't get a CreateItem
+				// parameter of its own.
+				item, err = store.SetDescription(item.ID, descriptionFlag, identity)
+				if err != nil {
+					return err
+				}
+			}
 			fmt.Printf("Added item successfully: %s\n", store.ShortID(item.ID))
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&listFlag, "list", string(store.ListBacklog), "backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "p0|p1|p2")
+	cmd.Flags().StringVar(&descriptionFlag, "description", "", "set the item's description at creation (equivalent to add then describe)")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false,
 		"create this item owned by the agent identity from backlog.agent.name/backlog.agent.email, instead of the ambient git identity — owner is permanent, see docs/design/git-backlog.md")
 	return cmd

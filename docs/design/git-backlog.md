@@ -149,6 +149,46 @@ concurrent edits to *different* fields (e.g. one sets `list`, the other
 *same* field resolve deterministically without needing a "winner" the user
 has to be told about.
 
+### Sync state
+
+`all`/`show` report each item's status against the last-known remote —
+up to date, ahead (local commits not pushed), behind (remote commits not
+pulled), diverged (both sides have unpushed commits — the next `sync`
+will merge), or not yet synced (no remote-tracking ref for this item at
+all). This is read-only: `internal/store.SyncState` (`internal/store/
+syncstate.go`) compares the local ref against the cached
+`refs/remotes/<remote>/backlog/<id>` tracking ref and never fetches —
+same as `git status` reporting a branch's ahead/behind from its cached
+upstream ref rather than a live network check. Deliberate: `all`/`show`
+staying side-effect-free (no implicit network I/O on a plain read) matters
+more than the numbers always being maximally fresh; the tradeoff is that
+this only reflects state as of the last `sync`.
+
+Ahead/behind counts come from `git rev-list --left-right --count
+local...remote` in one call (`gitx.AheadBehindCount`) — the same mechanism
+`git status` itself uses, not something bespoke.
+
+**A real bug found and fixed while building this**: `Sync`'s final step
+was a plain `gitx.Push`, and a plain push of a *custom* refspec (anything
+outside a remote's configured fetch refspec, which `refs/backlog/*` is)
+does **not** update local remote-tracking refs the way pushing a normal
+branch does — verified directly (`git push` a ref, then `git rev-parse`
+its `refs/remotes/<remote>/...` counterpart: absent). Without a fix,
+`SyncState` would report a just-pushed item as still "not yet synced" or
+"behind" until a second, unrelated fetch happened to run — actively
+misleading right when sync state matters most. Fixed in `Sync` itself
+(`internal/store/sync.go`): after a successful push, every local
+`refs/backlog/*` ref's matching tracking ref is updated to match,
+mirroring what git does automatically for normal branch pushes. Every ref
+reaching that point was already confirmed push-able as a fast-forward
+(any real divergence was resolved into a merge commit earlier in `Sync`),
+so this is safe, not a guess.
+
+No remote configured (or ambiguous, with none specified): sync state is
+omitted entirely from both `all` and `show`, not shown as an error or a
+zeroed-out summary — a backlog that's never used `sync` shouldn't have to
+see sync-related output at all.
+
 ## CLI command surface
 
 Every mutable field (`list`, `priority`, `title`) gets its own setter
@@ -158,13 +198,26 @@ command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`/
 
 **Create**
 ```
-git backlog add "<title>" [--list backlog|current|closed] [--priority p0|p1|p2] [--as-agent]
+git backlog add "<title>" [--list backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--as-agent]
 ```
 Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
 `--as-agent` — see Agent identity below — is meaningfully different here
 than on the Update commands: since the create commit's author becomes
 the item's permanent `owner`, `add --as-agent` doesn't just attribute one
 op, it makes the agent the item's owner forever.
+
+`--description` is a convenience, not a separate creation path:
+`internal/store.CreateItem`'s signature doesn't grow a `description`
+parameter — `add`'s `RunE` just calls `CreateItem` then, if
+`--description` was passed, `SetDescription` right after, both under the
+same identity. That's a deliberate implementation choice, not laziness:
+`CreateItem` already has 50+ call sites across the codebase (mostly
+tests), so adding a parameter there is a wide, mechanical, low-value
+change for a field that's optional at creation anyway — two op-log
+commits (create, then a description edit) is exactly what running `add`
+then `describe` by hand already produces, so nothing about the item's
+resulting state or history shape is different, only that one command
+line does both.
 
 **Read**
 ```
@@ -180,7 +233,9 @@ touched (even just a comment) surfaces to the top of its tier, so stale,
 untouched items sink down instead of an old item squatting at the top of
 its tier forever by virtue of having been created first. Long titles
 truncate for display (~60 chars + "…"); `show` always prints the full
-title untruncated, plus the item's full op-log history.
+title untruncated, plus the item's full op-log history. Both also report
+each item's status against the last-known remote — see "Sync state"
+under Sync & conflict resolution above.
 
 A tool that's succeeding at its job accumulates `closed` items forever, so
 by default `all` caps the closed section to the 10 most recently *updated*

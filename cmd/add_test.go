@@ -49,6 +49,53 @@ func TestAddWithListAndPriorityFlags(t *testing.T) {
 	}
 }
 
+func TestAddWithDescriptionFlag(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	out, err := runCmd(t, newAddCmd(), "fix flaky test", "--description", "flakes under -race due to a shared temp dir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.TrimSpace(strings.TrimPrefix(out, "Added item successfully: "))
+	item, err := store.LoadItem(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Description != "flakes under -race due to a shared temp dir" {
+		t.Fatalf("Description = %q", item.Description)
+	}
+
+	history, err := store.History(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("expected 2 op-log entries (create, then a description edit), got %d", len(history))
+	}
+}
+
+func TestAddWithoutDescriptionFlagLeavesItUnset(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	out, err := runCmd(t, newAddCmd(), "fix flaky test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.TrimSpace(strings.TrimPrefix(out, "Added item successfully: "))
+	item, err := store.LoadItem(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Description != "" {
+		t.Fatalf("expected no description, got %q", item.Description)
+	}
+	history, err := store.History(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected only the create op when --description is omitted, got %d entries", len(history))
+	}
+}
+
 func TestAddRejectsEmptyTitle(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	if _, err := runCmd(t, newAddCmd(), "   "); err == nil {

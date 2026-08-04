@@ -81,6 +81,27 @@ func Sync(remote string) (*SyncReport, error) {
 	if err := gitx.Push(remote, backlogRefspec); err != nil {
 		return nil, fmt.Errorf("pushing to %s: %w", remote, err)
 	}
+
+	// Mirror the just-pushed state into local remote-tracking refs. Real
+	// git updates a branch's remote-tracking ref right after a successful
+	// push of that branch; backlogRefspec doesn't get that for free since
+	// it isn't the remote's configured fetch refspec, so without this,
+	// SyncState (see syncstate.go) would report a freshly-synced item as
+	// still behind/not-synced until a second, separate fetch happened to
+	// run. Every reconciled ref was just confirmed pushed (fast-forward,
+	// since divergence was already resolved into a merge commit above),
+	// so it's safe to mark every local id's tracking ref caught up.
+	localRefs, err := gitx.ForEachRef(refNamespace)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range localRefs {
+		trackingRef := remoteTrackingPrefix + IDFromRef(r.Ref)
+		old, _ := resolveOrEmpty(trackingRef)
+		if err := gitx.UpdateRef(trackingRef, r.Hash, old); err != nil {
+			return nil, fmt.Errorf("updating tracking ref: %w", err)
+		}
+	}
 	return report, nil
 }
 

@@ -17,14 +17,15 @@ type jsonOwner struct {
 // jsonItem is an item's current state, as JSON. Priority is omitted
 // entirely when unset, rather than emitted as "" or "none".
 type jsonItem struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	List        string    `json:"list"`
-	Priority    string    `json:"priority,omitempty"`
-	Comment     string    `json:"comment,omitempty"`
-	Owner       jsonOwner `json:"owner"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description,omitempty"`
+	List        string         `json:"list"`
+	Priority    string         `json:"priority,omitempty"`
+	Comment     string         `json:"comment,omitempty"`
+	Owner       jsonOwner      `json:"owner"`
+	CreatedAt   time.Time      `json:"created_at"`
+	Sync        *jsonSyncState `json:"sync,omitempty"`
 }
 
 func toJSONItem(it *store.Item) jsonItem {
@@ -38,6 +39,23 @@ func toJSONItem(it *store.Item) jsonItem {
 		Owner:       jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
 		CreatedAt:   it.CreatedAt,
 	}
+}
+
+// jsonSyncState is an item's sync status, as JSON. nil (omitted from the
+// object entirely) means no remote was configured/resolvable — distinct
+// from status "not_synced", which means a remote exists but this item has
+// no remote-tracking ref yet.
+type jsonSyncState struct {
+	Status   string `json:"status"`
+	AheadBy  int    `json:"ahead_by,omitempty"`
+	BehindBy int    `json:"behind_by,omitempty"`
+}
+
+func toJSONSyncState(s *store.ItemSyncState) *jsonSyncState {
+	if s == nil {
+		return nil
+	}
+	return &jsonSyncState{Status: string(s.Status), AheadBy: s.AheadBy, BehindBy: s.BehindBy}
 }
 
 // jsonChange is one field touched by an op-log entry.

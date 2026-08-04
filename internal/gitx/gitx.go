@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -249,6 +250,29 @@ func RevListReverse(tip string) ([]string, error) {
 		return nil, err
 	}
 	return splitLines(out), nil
+}
+
+// AheadBehindCount reports how many commits local has that remote doesn't
+// (ahead) and vice versa (behind), in one call — the same mechanism `git
+// status` itself uses for a branch's upstream ahead/behind counts.
+func AheadBehindCount(local, remote string) (ahead, behind int, err error) {
+	out, err := Run("rev-list", "--left-right", "--count", local+"..."+remote)
+	if err != nil {
+		return 0, 0, err
+	}
+	fields := strings.Fields(out)
+	if len(fields) != 2 {
+		return 0, 0, fmt.Errorf("unexpected rev-list --left-right --count output: %q", out)
+	}
+	ahead, err = strconv.Atoi(fields[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	behind, err = strconv.Atoi(fields[1])
+	if err != nil {
+		return 0, 0, err
+	}
+	return ahead, behind, nil
 }
 
 // DiffStatus is one changed top-level entry between two trees.

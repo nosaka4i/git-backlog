@@ -35,9 +35,9 @@ git backlog sync
 | Command | Effect |
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
-| `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
-| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, most-recently-updated-first within each group (empty lists shown as `(empty)`) |
-| `show <id> [--json]` | Full item state plus its complete op-log history |
+| `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
+| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, most-recently-updated-first within each group (empty lists shown as `(empty)`); shows sync status when a remote's configured |
+| `show <id> [--json]` | Full item state plus its complete op-log history, including sync status |
 | `history [--list <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
 | `list <id> <backlog\|current\|closed> [--as-agent]` | Move an item between lists (closing an item is just `list <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |
@@ -62,6 +62,21 @@ closed section to the 10 most recently updated items by default (a
 removes the cap; `--list closed` also shows the full closed list, since
 asking for it specifically is already an explicit, narrow request.
 
+### Sync status
+
+When a remote's configured, `all` prints a `git status`-style summary at
+the top ("2 ahead, 1 behind, 1 diverged, 3 not yet synced" — or "up to
+date with origin" when there's nothing to report), and marks affected
+items in place: `↑N` (N local commits not yet pushed), `↓N` (N remote
+commits not yet pulled), `⇕` (diverged — the next `sync` will produce a
+merge), `(not synced)` (no remote-tracking info for this item at all
+yet). `show <id>` prints the same status as a `sync:` line. Both read
+straight from git's local, already-fetched knowledge of the remote (same
+as `git status`'s own ahead/behind) — neither command fetches, so this
+reflects state as of the last `sync`, not a live check; run `sync` again
+for fresher numbers. With no remote configured at all, both commands omit
+sync status entirely rather than showing an empty/zeroed-out summary.
+
 `comment` is a single freeform field, edited the same way as `title` (each
 edit replaces the value; `comment <id> ""` clears it). `show <id>` and
 `history` only render `Updated comment`/`Cleared comment` for it, same as
@@ -76,7 +91,10 @@ to hold a single *permanent* explanation of what the item actually is
 whereas `comment` is for ongoing, conversational back-and-forth (hence
 `comment show`'s threaded history view). There's no `describe show` —
 unlike a comment thread, a description has one current value worth
-showing, not a log worth browsing.
+showing, not a log worth browsing. `add --description "<text>"` sets it
+at creation time as a convenience — under the hood it's still two op-log
+entries (create, then a description edit), the same as running `add` then
+`describe` by hand, just in one command line.
 
 ### Agent identity
 

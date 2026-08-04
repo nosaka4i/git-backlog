@@ -75,14 +75,33 @@ func newAllCmd() *cobra.Command {
 				})
 			}
 
+			syncStates := make(map[string]*store.ItemSyncState)
+			syncRemote, remoteErr := store.ResolveRemote("")
+			if remoteErr == nil {
+				for _, it := range items {
+					s, err := store.SyncState(it.ID, syncRemote)
+					if err != nil {
+						return err
+					}
+					syncStates[it.ID] = &s
+				}
+			}
+
 			if jsonFlag {
 				out := make([]jsonItem, 0, len(items))
 				for _, l := range displayLists {
 					for _, it := range byList[l] {
-						out = append(out, toJSONItem(it))
+						jitem := toJSONItem(it)
+						jitem.Sync = toJSONSyncState(syncStates[it.ID])
+						out = append(out, jitem)
 					}
 				}
 				return printJSON(out)
+			}
+
+			if remoteErr == nil {
+				fmt.Println(syncSummaryLine(syncRemote, syncStates))
+				fmt.Println()
 			}
 
 			for _, l := range displayLists {
@@ -98,7 +117,7 @@ func newAllCmd() *cobra.Command {
 						lastPriority = it.Priority.Rank()
 						fmt.Println("  " + groupLabel(it.Priority))
 					}
-					fmt.Printf("    %s  %s\n", store.ShortID(it.ID), truncate(it.Title, 60))
+					fmt.Printf("    %s  %s%s\n", store.ShortID(it.ID), truncate(it.Title, 60), syncMarker(syncStates[it.ID]))
 				}
 				if l == store.ListClosed && omitted > 0 {
 					fmt.Printf("  ... and %d more (use --closed-limit 0 to show all, or --list closed)\n", omitted)
