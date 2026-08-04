@@ -23,16 +23,17 @@ code — git-bug is GPL-3.0, this is MIT), independently implemented in Go.
 
 ## Schema
 
-Five fields, nothing else:
+Six fields, nothing else:
 
-| Field      | Type                              | Notes                                    |
-|------------|------------------------------------|-------------------------------------------|
-| `title`    | string                             | brief, like a commit subject line          |
-| `list`     | `backlog` \| `current` \| `closed` | named after Trello's terminology; this IS the field that tracks bucket membership, no separate "status" concept |
-| `priority` | `p0` \| `p1` \| `p2` \| unset       | unset ≠ a literal "none" value — the entry is simply absent |
-| `owner`    | git identity (name + email)        | read from the create commit's author field, fixed permanently, no reassignment |
-| `comment`  | string, optional                   | freeform "why," not threaded — see below |
-| `id`       | content hash (of the create commit)| permanent forever, displayed as an auto-growing short prefix (`git rev-parse --short` convention) |
+| Field         | Type                              | Notes                                    |
+|---------------|------------------------------------|-------------------------------------------|
+| `title`       | string                             | brief, like a commit subject line          |
+| `list`        | `backlog` \| `current` \| `closed` | named after Trello's terminology; this IS the field that tracks bucket membership, no separate "status" concept |
+| `priority`    | `p0` \| `p1` \| `p2` \| unset       | unset ≠ a literal "none" value — the entry is simply absent |
+| `owner`       | git identity (name + email)        | read from the create commit's author field, fixed permanently, no reassignment |
+| `description` | string, optional                   | permanent "what this is," single current value, replace-on-edit — see below |
+| `comment`     | string, optional                   | freeform "why," not threaded — see below |
+| `id`          | content hash (of the create commit)| permanent forever, displayed as an auto-growing short prefix (`git rev-parse --short` convention) |
 
 Explicitly excluded (see requirements doc's non-goals for the reasoning
 behind each): label/type, references/dependencies, ordinal/fractional-index
@@ -50,6 +51,18 @@ authorship beyond whichever op-log commit made that edit). It does not
 reopen the rest of the excluded list — this is deliberately the smallest
 version of "why," not a move toward comment threads, labels, or
 dependencies.
+
+`description` followed for a related but distinct reason: `title` alone
+has to serve two jobs — a short label for `all`'s compact list view *and*
+the full explanation of what an item is — and those pull in opposite
+directions once a title gets long enough to need truncating there. Rather
+than overload `title` further or make `comment` (explicitly the
+conversational, threaded field) double as "the definition," `description`
+is its own field, but built the same minimal way `comment` was: a single
+freeform string, replace-on-edit exactly like `title`, no threading, no
+`describe show` — a description has one current value worth showing, not
+a log worth browsing, which is exactly the property that distinguishes it
+from `comment`.
 
 ## Storage model
 
@@ -157,12 +170,15 @@ op, it makes the agent the item's owner forever.
 ```
 git backlog all [--list <value>] [--priority <value>] [--closed-limit N] [--json]
 git backlog show <id> [--json]
-git backlog history [--list <value>] [--priority <value>] [--json]
+git backlog history [--list <value>] [--priority <value>] [--json] [--no-pager]
 ```
 `all` prints everything, grouped by list (current, backlog, then closed —
 what you're actively doing first, what's queued next, what's done last),
 then by priority tier within each list (p0, p1, p2, then unprioritized),
-sorted oldest-first by creation time within each group. Long titles
+sorted most-recently-updated-first within each group — an item you just
+touched (even just a comment) surfaces to the top of its tier, so stale,
+untouched items sink down instead of an old item squatting at the top of
+its tier forever by virtue of having been created first. Long titles
 truncate for display (~60 chars + "…"); `show` always prints the full
 title untruncated, plus the item's full op-log history.
 
@@ -196,24 +212,43 @@ introduces. `--list`/`--priority` filter by an item's *current* state,
 same as `all` — not by what the value was at the time of each historical
 op.
 
+Since `history` is the union of every item's full op-log, it only grows —
+there's no cap like `all`'s `--closed-limit`. Instead it pages the same
+way `git log`/`git diff`/`git show` do: when stdout is a terminal, output
+is piped through a pager (`$GIT_PAGER`, then `core.pager`, then `$PAGER`,
+then `less` — the exact precedence `git-config(1)` documents for
+`core.pager`, so an existing git pager setup just works here too);
+piped/redirected output (`| grep ...`, `> file`, `--json`) is never paged,
+matching git's own behavior of only paging interactive terminal output.
+`--no-pager` forces it off even on a terminal, mirroring `git --no-pager`.
+
 **Update**
 ```
 git backlog list <id> <backlog|current|closed>
 git backlog priority <id> <p0|p1|p2|none>
 git backlog title <id> "<new title>"
+git backlog describe <id> "<text>"
 git backlog comment <id> "<text>"
 git backlog comment show <id> [--json]
 ```
-`comment` follows the same replace-on-edit shape as `title` — passing `""`
-clears it. `show <id>`'s own history only renders `Updated
+`describe` and `comment` both follow the same replace-on-edit shape as
+`title` — passing `""` clears either. `show <id>`'s own history only
+renders `Updated description`/`Cleared description` and `Updated
 comment`/`Cleared comment` (consistent with how it never inlines a
-renamed title either), so it doesn't surface past comment text by itself.
-`comment show <id>` is the dedicated read path: it walks the op-log,
-picks out just the `comment` field's changes, and prints them newest
-first (matching `history`'s convention) with timestamp/commit/author, so
-past comments read like a thread — without needing a real comment-thread
-data structure, since every edit was already a real git commit. Nested
-under `comment` rather than a
+renamed title either), so it doesn't surface past text by itself.
+`description` has no `show` subcommand — unlike `comment`, it's meant to
+hold one current, permanent value, not a thread, so `show <id>`'s
+top-level `description:` line is already the complete read path. Command
+name is the verb `describe`, not the noun `description`, matching
+`comment`/`title`'s own verb-shaped names rather than introducing a
+different naming convention for one field.
+
+`comment show <id>` is the dedicated read path for the field that *is*
+threaded: it walks the op-log, picks out just the `comment` field's
+changes, and prints them newest first (matching `history`'s convention)
+with timestamp/commit/author, so past comments read like a thread —
+without needing a real comment-thread data structure, since every edit
+was already a real git commit. Nested under `comment` rather than a
 separate top-level verb, the same way `git remote add`/`git remote show`
 share one namespace instead of being unrelated top-level commands.
 
@@ -274,7 +309,7 @@ necessarily make sense in every repo, and local config is what
 `backlog.init` itself already uses.
 
 **Usage**: `--as-agent` on `add` and the field-setter commands — `title`,
-`priority`, `list`, `comment` — reads `backlog.agent.name`/
+`describe`, `priority`, `list`, `comment` — reads `backlog.agent.name`/
 `backlog.agent.email` and records that operation under the agent's
 identity instead of the ambient one:
 ```
@@ -298,8 +333,8 @@ unnoticed.
 **What this does *not* affect, except on `add`**: an item's `owner`
 (`OwnerName`/`OwnerEmail`) is read from the *create* commit's author
 specifically and is permanent by design (see Schema above — "no
-reassignment") — using `--as-agent` on a later `comment`/`priority`/
-`list`/`title` op never changes who owns the item, only who's credited
+reassignment") — using `--as-agent` on a later `comment`/`describe`/
+`priority`/`list`/`title` op never changes who owns the item, only who's credited
 for that one op-log entry. `add --as-agent` is the deliberate exception:
 because the create commit's author *is* the owner, using `--as-agent`
 there makes the agent the item's permanent owner, not just that one
@@ -332,8 +367,9 @@ feature this tool needs to own. Every backlog here starts fresh.
 
 **No migration between git-backlog schema versions either — because none
 is ever needed for the kind of change made so far.** The schema table
-above has already grown once (`comment` added after v1 shipped) without
-any migration step, and that's not a coincidence: the tree-of-named-
+above has already grown twice (`comment`, then `description`, both added
+after v1 shipped) without any migration step, and that's not a
+coincidence: the tree-of-named-
 optional-entries storage model (see Storage model above) makes purely
 additive schema changes safe in both directions, by construction, not by
 convention someone has to remember to follow. Verified against the

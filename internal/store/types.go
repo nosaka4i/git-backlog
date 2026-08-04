@@ -86,11 +86,12 @@ func (p Priority) Rank() int {
 // Tree entry field names. "clock" is an internal Lamport counter, not part
 // of the user-visible schema.
 const (
-	fieldTitle    = "title"
-	fieldList     = "list"
-	fieldPriority = "priority"
-	fieldComment  = "comment"
-	fieldClock    = "clock"
+	fieldTitle       = "title"
+	fieldList        = "list"
+	fieldPriority    = "priority"
+	fieldComment     = "comment"
+	fieldDescription = "description"
+	fieldClock       = "clock"
 )
 
 // Identity overrides the git author/committer for a single operation,
@@ -116,18 +117,19 @@ func IDFromRef(ref string) string {
 
 // Item is an item's current, reconstructed state.
 type Item struct {
-	ID         string // create-commit hash; permanent
-	Ref        string
-	Tip        string // current op-log commit hash
-	Title      string
-	List       List
-	Priority   Priority
-	Comment    string // freeform, optional; "" means never set
-	OwnerName  string
-	OwnerEmail string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time // when the tip op-log commit was made
-	Clock      int
+	ID          string // create-commit hash; permanent
+	Ref         string
+	Tip         string // current op-log commit hash
+	Title       string
+	List        List
+	Priority    Priority
+	Description string // freeform, optional, permanent (single current value, replace-on-edit like Title); "" means never set
+	Comment     string // freeform, optional; "" means never set
+	OwnerName   string
+	OwnerEmail  string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time // when the tip op-log commit was made
+	Clock       int
 }
 
 // ShortID returns git's auto-growing unambiguous short form of the id.

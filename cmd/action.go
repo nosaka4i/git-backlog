@@ -25,6 +25,11 @@ func actionLine(field string, removed bool, value string) string {
 			return "Cleared comment"
 		}
 		return "Updated comment"
+	case "description":
+		if removed {
+			return "Cleared description"
+		}
+		return "Updated description"
 	default:
 		return field + ": " + value
 	}

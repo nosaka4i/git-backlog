@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nosaka4i/git-backlog/internal/store"
 )
@@ -45,6 +46,37 @@ func TestAllGroupsByListThenPriority(t *testing.T) {
 	closedSection := out[closedIdx:]
 	if !strings.Contains(closedSection, "(empty)") {
 		t.Fatalf("expected closed section to say (empty):\n%s", closedSection)
+	}
+}
+
+func TestAllSortsMostRecentlyUpdatedFirstWithinGroup(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	first, err := store.CreateItem("created first", store.ListBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(gitTimestampResolution)
+	if _, err := store.CreateItem("created second", store.ListBacklog, store.PriorityNone, nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(gitTimestampResolution)
+	// Touch the first (older) item so it's now the most recently updated,
+	// even though it was created first.
+	if _, err := store.SetTitle(first.ID, "created first, updated last", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCmd(t, newAllCmd())
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstIdx := strings.Index(out, "created first, updated last")
+	secondIdx := strings.Index(out, "created second")
+	if firstIdx < 0 || secondIdx < 0 {
+		t.Fatalf("missing expected items:\n%s", out)
+	}
+	if !(firstIdx < secondIdx) {
+		t.Fatalf("expected the more-recently-updated item first despite being created earlier:\n%s", out)
 	}
 }
 

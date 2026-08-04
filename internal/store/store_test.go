@@ -210,6 +210,58 @@ func TestSetCommentAsAgentIdentity(t *testing.T) {
 	}
 }
 
+func TestSetDescription(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Description != "" {
+		t.Fatalf("description should be unset on create, got %q", item.Description)
+	}
+
+	updated, err := SetDescription(item.ID, "flakes under -race due to a shared temp dir", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Description != "flakes under -race due to a shared temp dir" {
+		t.Fatalf("description = %q", updated.Description)
+	}
+
+	updated, err = SetDescription(item.ID, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Description != "" {
+		t.Fatalf("description should be cleared, got %q", updated.Description)
+	}
+}
+
+func TestSetDescriptionAsAgentIdentity(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := &Identity{Name: "Claude", Email: "claude@example.com"}
+	updated, err := SetDescription(item.ID, "flakes under -race", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.OwnerName != "alice" || updated.OwnerEmail != "alice@example.com" {
+		t.Fatalf("owner should stay fixed at creation: got %s <%s>", updated.OwnerName, updated.OwnerEmail)
+	}
+
+	history, err := History(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := history[len(history)-1]
+	if last.AuthorName != "Claude" || last.AuthorEmail != "claude@example.com" {
+		t.Fatalf("last op author = %s <%s>, want the agent identity", last.AuthorName, last.AuthorEmail)
+	}
+}
+
 func TestAllItems(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	titles := []string{"a", "b", "c"}

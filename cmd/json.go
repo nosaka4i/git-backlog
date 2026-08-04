@@ -17,24 +17,26 @@ type jsonOwner struct {
 // jsonItem is an item's current state, as JSON. Priority is omitted
 // entirely when unset, rather than emitted as "" or "none".
 type jsonItem struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	List      string    `json:"list"`
-	Priority  string    `json:"priority,omitempty"`
-	Comment   string    `json:"comment,omitempty"`
-	Owner     jsonOwner `json:"owner"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description,omitempty"`
+	List        string    `json:"list"`
+	Priority    string    `json:"priority,omitempty"`
+	Comment     string    `json:"comment,omitempty"`
+	Owner       jsonOwner `json:"owner"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func toJSONItem(it *store.Item) jsonItem {
 	return jsonItem{
-		ID:        it.ID,
-		Title:     it.Title,
-		List:      string(it.List),
-		Priority:  string(it.Priority),
-		Comment:   it.Comment,
-		Owner:     jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
-		CreatedAt: it.CreatedAt,
+		ID:          it.ID,
+		Title:       it.Title,
+		Description: it.Description,
+		List:        string(it.List),
+		Priority:    string(it.Priority),
+		Comment:     it.Comment,
+		Owner:       jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
+		CreatedAt:   it.CreatedAt,
 	}
 }
 

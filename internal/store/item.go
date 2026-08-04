@@ -141,6 +141,18 @@ func SetTitle(idPrefix string, title string, identity *Identity) (*Item, error) 
 	return applyOp(idPrefix, map[string]*string{fieldTitle: &title}, "edit: "+title, identity)
 }
 
+// SetDescription records a description-edit operation. The new text fully
+// replaces any previous description, same as SetTitle — unlike Comment,
+// Description is meant to hold a single permanent, current explanation of
+// what the item is, not a discussion thread; past values remain visible
+// via the item's op-log history like any other field, but there's no
+// dedicated "show all descriptions" view the way there is for comments.
+// identity is nil to use the ambient git config, or an override — see
+// Identity.
+func SetDescription(idPrefix string, description string, identity *Identity) (*Item, error) {
+	return applyOp(idPrefix, map[string]*string{fieldDescription: &description}, "description: "+description, identity)
+}
+
 // SetComment records a comment-edit operation. The new text fully replaces
 // any previous comment, same as SetTitle — the prior text remains visible
 // via the item's op-log history. identity is nil to use the ambient git
@@ -259,23 +271,28 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
+	description, err := fieldValue(entries, fieldDescription)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
 	clockRaw, err := fieldValue(entries, fieldClock)
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
 	return &Item{
-		ID:         id,
-		Ref:        ref,
-		Tip:        tip,
-		Title:      title,
-		List:       List(listRaw),
-		Priority:   Priority(priorityRaw),
-		Comment:    comment,
-		OwnerName:  createCommit.AuthorName,
-		OwnerEmail: createCommit.AuthorEmail,
-		CreatedAt:  parseGitDate(createCommit.AuthorDate),
-		UpdatedAt:  parseGitDate(tipCommit.AuthorDate),
-		Clock:      parseClock(clockRaw),
+		ID:          id,
+		Ref:         ref,
+		Tip:         tip,
+		Title:       title,
+		List:        List(listRaw),
+		Priority:    Priority(priorityRaw),
+		Description: description,
+		Comment:     comment,
+		OwnerName:   createCommit.AuthorName,
+		OwnerEmail:  createCommit.AuthorEmail,
+		CreatedAt:   parseGitDate(createCommit.AuthorDate),
+		UpdatedAt:   parseGitDate(tipCommit.AuthorDate),
+		Clock:       parseClock(clockRaw),
 	}, nil
 }
 

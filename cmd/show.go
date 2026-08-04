@@ -37,17 +37,22 @@ func newShowCmd() *cobra.Command {
 			if item.Priority != store.PriorityNone {
 				priority = string(item.Priority)
 			}
-			fmt.Printf("id:       %s\n", store.ShortID(item.ID))
-			fmt.Printf("title:    %s\n", item.Title)
-			fmt.Printf("list:     %s\n", item.List)
-			fmt.Printf("priority: %s\n", priority)
+			fmt.Printf("id:          %s\n", store.ShortID(item.ID))
+			fmt.Printf("title:       %s\n", item.Title)
+			description := "(none)"
+			if item.Description != "" {
+				description = item.Description
+			}
+			fmt.Printf("description: %s\n", description)
+			fmt.Printf("list:        %s\n", item.List)
+			fmt.Printf("priority:    %s\n", priority)
 			comment := "(none)"
 			if item.Comment != "" {
 				comment = item.Comment
 			}
-			fmt.Printf("comment:  %s\n", comment)
-			fmt.Printf("owner:    %s <%s>\n", item.OwnerName, item.OwnerEmail)
-			fmt.Printf("created:  %s\n", item.CreatedAt.Format("2006-01-02 15:04:05 -0700"))
+			fmt.Printf("comment:     %s\n", comment)
+			fmt.Printf("owner:       %s <%s>\n", item.OwnerName, item.OwnerEmail)
+			fmt.Printf("created:     %s\n", item.CreatedAt.Format("2006-01-02 15:04:05 -0700"))
 			fmt.Println()
 			fmt.Println("history:")
 			history, err := store.History(item.ID)

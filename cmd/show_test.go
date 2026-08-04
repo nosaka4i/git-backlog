@@ -22,10 +22,10 @@ func TestShowHumanOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"title:    fix flaky test",
-		"list:     current",
-		"priority: p1",
-		"owner:    alice <alice@example.com>",
+		"title:       fix flaky test",
+		"list:        current",
+		"priority:    p1",
+		"owner:       alice <alice@example.com>",
 		"history:",
 		"Added item",
 		"Moved to current",
@@ -46,7 +46,7 @@ func TestShowUnsetPriorityPrintsUnset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "priority: unset") {
+	if !strings.Contains(out, "priority:    unset") {
 		t.Fatalf("output = %q", out)
 	}
 }

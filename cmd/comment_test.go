@@ -51,7 +51,7 @@ func TestShowIncludesComment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "comment:  (none)") {
+	if !strings.Contains(out, "comment:     (none)") {
 		t.Fatalf("expected unset comment to show (none):\n%s", out)
 	}
 
@@ -62,7 +62,7 @@ func TestShowIncludesComment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "comment:  flaky under -race") {
+	if !strings.Contains(out, "comment:     flaky under -race") {
 		t.Fatalf("expected comment text in show output:\n%s", out)
 	}
 	if !strings.Contains(out, "Updated comment") {

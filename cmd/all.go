@@ -71,7 +71,7 @@ func newAllCmd() *cobra.Command {
 					if group[i].Priority.Rank() != group[j].Priority.Rank() {
 						return group[i].Priority.Rank() < group[j].Priority.Rank()
 					}
-					return group[i].CreatedAt.Before(group[j].CreatedAt)
+					return group[i].UpdatedAt.After(group[j].UpdatedAt)
 				})
 			}
 

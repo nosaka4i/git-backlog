@@ -10,7 +10,7 @@ import (
 
 func newHistoryCmd() *cobra.Command {
 	var listFlag, priorityFlag string
-	var jsonFlag bool
+	var jsonFlag, noPagerFlag bool
 	cmd := &cobra.Command{
 		Use:   "history",
 		Short: "Show a chronological activity trail across every item",
@@ -61,13 +61,15 @@ func newHistoryCmd() *cobra.Command {
 				return printJSON(out)
 			}
 
+			w, done := pagerWriter(noPagerFlag)
+			defer done()
 			for _, e := range entries {
-				fmt.Printf("%s  %s  %s <%s>\n",
+				fmt.Fprintf(w, "%s  %s  %s <%s>\n",
 					e.op.When.Format("2006-01-02 15:04:05 -0700"), e.op.Commit[:12], e.op.AuthorName, e.op.AuthorEmail)
 				for _, line := range opActionLines(e.op) {
-					fmt.Printf("    Title: %s (%s)\n", truncate(e.item.Title, 60), line)
+					fmt.Fprintf(w, "    Title: %s (%s)\n", truncate(e.item.Title, 60), line)
 				}
-				fmt.Println()
+				fmt.Fprintln(w)
 			}
 			return nil
 		},
@@ -75,6 +77,7 @@ func newHistoryCmd() *cobra.Command {
 	cmd.Flags().StringVar(&listFlag, "list", "", "filter to items currently in backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "filter to items currently at p0|p1|p2|none")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&noPagerFlag, "no-pager", false, "don't pipe output through a pager, even on a terminal")
 	return cmd
 }
 

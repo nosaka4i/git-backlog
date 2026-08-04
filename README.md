@@ -36,12 +36,13 @@ git backlog sync
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
-| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, oldest-first within each group (empty lists shown as `(empty)`) |
+| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, most-recently-updated-first within each group (empty lists shown as `(empty)`) |
 | `show <id> [--json]` | Full item state plus its complete op-log history |
-| `history [--list <value>] [--priority <value>] [--json]` | Chronological activity trail across every item, newest first |
+| `history [--list <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
 | `list <id> <backlog\|current\|closed> [--as-agent]` | Move an item between lists (closing an item is just `list <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |
 | `title <id> "<new title>" [--as-agent]` | Rename an item |
+| `describe <id> "<text>" [--as-agent]` | Set an item's description (empty string clears it) |
 | `comment <id> "<text>" [--as-agent]` | Set an item's comment (empty string clears it) |
 | `comment show <id> [--json]` | Show an item's comments, newest first |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
@@ -68,6 +69,15 @@ every other field — to read past comment text, use `comment show <id>`,
 which walks the op-log and prints just the comment changes, newest first
 (matching `history`'s convention).
 
+`description` is also single freeform field, replace-on-edit just like
+`title`/`comment` — but semantically different from `comment`: it's meant
+to hold a single *permanent* explanation of what the item actually is
+(only shown in `show`/`--json`, never in `all`'s compact list view),
+whereas `comment` is for ongoing, conversational back-and-forth (hence
+`comment show`'s threaded history view). There's no `describe show` —
+unlike a comment thread, a description has one current value worth
+showing, not a log worth browsing.
+
 ### Agent identity
 
 Every op-log commit's author comes from whatever git identity is ambient
@@ -85,7 +95,7 @@ git config backlog.agent.email "noreply@anthropic.com"
 (`noreply@anthropic.com` is just an example — any name/email works, no
 real account or mailbox required; see below.)
 
-then pass `--as-agent` on `add`/`title`/`priority`/`list`/`comment` to
+then pass `--as-agent` on `add`/`title`/`describe`/`priority`/`list`/`comment` to
 record that specific operation under the agent's identity instead:
 ```
 git backlog comment <id> "looks flaky under -race" --as-agent
@@ -104,7 +114,7 @@ fail. (On GitHub specifically, an author email that doesn't match a
 verified account just renders as plain gray-icon text instead of a
 linked avatar in the web UI — cosmetic only, no functional difference.)
 
-On `title`/`priority`/`list`/`comment`, `--as-agent` only affects that
+On `title`/`describe`/`priority`/`list`/`comment`, `--as-agent` only affects that
 one op-log entry — it never touches an item's `owner` (fixed permanently
 from the *create* commit, per the design doc's "no reassignment" rule).
 `add` is the one exception: since the create commit's author **is** the
@@ -117,6 +127,12 @@ ask the agent to file an item on your behalf and it runs
 See [`docs/design/git-backlog.md`](docs/design/git-backlog.md)'s "Agent
 identity" section for the full rationale, including why this can't be
 applied retroactively to past comments.
+
+On a terminal, `history` pipes its output through a pager, same as `git
+log`/`git diff` (`$GIT_PAGER`, `core.pager`, then `$PAGER`, then `less` —
+git's own precedence, so an existing git pager setup already applies);
+`--no-pager` disables it, and piped/redirected/`--json` output is never
+paged.
 
 `history` flattens every item's op-log into one chronological feed —
 same `--list`/`--priority` filters as `all`, applied to items' *current*
