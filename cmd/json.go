@@ -25,6 +25,7 @@ type jsonItem struct {
 	Comment     string         `json:"comment,omitempty"`
 	Owner       jsonOwner      `json:"owner"`
 	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 	Sync        *jsonSyncState `json:"sync,omitempty"`
 }
 
@@ -38,6 +39,7 @@ func toJSONItem(it *store.Item) jsonItem {
 		Comment:     it.Comment,
 		Owner:       jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
 		CreatedAt:   it.CreatedAt,
+		UpdatedAt:   it.UpdatedAt,
 	}
 }
 

@@ -37,7 +37,7 @@ git backlog sync
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
 | `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, most-recently-updated-first within each group (empty lists shown as `(empty)`); shows sync status when a remote's configured |
-| `show <id> [--json]` | Full item state plus its complete op-log history, including sync status |
+| `show <id> [--json]` | Full item state plus its complete op-log history (newest first), including sync status |
 | `history [--list <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
 | `list <id> <backlog\|current\|closed> [--as-agent]` | Move an item between lists (closing an item is just `list <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |

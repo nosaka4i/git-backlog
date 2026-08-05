@@ -94,8 +94,8 @@ type commentEntry struct {
 }
 
 // commentEntries pulls just the comment-field changes out of an item's
-// op-log, newest first (matching `history`'s convention, rather than
-// `show`'s oldest-first per-item op-log).
+// op-log, newest first (matching `history`'s and `show`'s own convention).
+// store.History itself returns oldest-first, hence the reverse iteration.
 func commentEntries(history []store.OpRecord) []commentEntry {
 	var entries []commentEntry
 	for i := len(history) - 1; i >= 0; i-- {

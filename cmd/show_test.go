@@ -26,6 +26,8 @@ func TestShowHumanOutput(t *testing.T) {
 		"list:        current",
 		"priority:    p1",
 		"owner:       alice <alice@example.com>",
+		"created:     ",
+		"updated:     ",
 		"history:",
 		"Added item",
 		"Moved to current",
@@ -76,6 +78,33 @@ func TestShowJSONIncludesHistory(t *testing.T) {
 	}
 	if len(detail.History) != 2 {
 		t.Fatalf("history = %d ops, want 2", len(detail.History))
+	}
+	// Newest first: the list-change op should come before the create op.
+	if len(detail.History[0].Changes) == 0 || detail.History[0].Changes[0].Field != "list" {
+		t.Fatalf("expected the list-change op first (newest), got %+v", detail.History[0])
+	}
+}
+
+func TestShowHistoryIsNewestFirst(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetTitle(item.ID, "fix flaky test, take 2", nil); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCmd(t, newShowCmd(), item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addedIdx := strings.Index(out, "Added item")
+	renamedIdx := strings.Index(out, "Renamed item")
+	if addedIdx < 0 || renamedIdx < 0 {
+		t.Fatalf("missing expected history lines:\n%s", out)
+	}
+	if !(renamedIdx < addedIdx) {
+		t.Fatalf("expected the more recent \"Renamed item\" to appear before \"Added item\":\n%s", out)
 	}
 }
 

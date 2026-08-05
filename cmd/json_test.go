@@ -4,9 +4,36 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nosaka4i/git-backlog/internal/store"
 )
+
+func TestToJSONItemIncludesCreatedAndUpdatedAt(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(gitTimestampResolution)
+	if _, err := store.SetPriority(item.ID, store.PriorityP1, nil); err != nil {
+		t.Fatal(err)
+	}
+	item, err = store.LoadItem(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jitem := toJSONItem(item)
+	if jitem.CreatedAt.IsZero() {
+		t.Fatal("expected CreatedAt to be set")
+	}
+	if jitem.UpdatedAt.IsZero() {
+		t.Fatal("expected UpdatedAt to be set")
+	}
+	if !jitem.UpdatedAt.After(jitem.CreatedAt) {
+		t.Fatalf("expected UpdatedAt (%v) after CreatedAt (%v) once the item was edited", jitem.UpdatedAt, jitem.CreatedAt)
+	}
+}
 
 func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	chdirTempRepo(t, "alice")

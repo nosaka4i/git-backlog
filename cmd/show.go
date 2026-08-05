@@ -34,12 +34,20 @@ func newShowCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				// store.History is oldest-first; reverse so the JSON
+				// history array matches the human output's newest-first
+				// order (toJSONHistory itself stays order-preserving —
+				// see its own test).
+				newestFirst := make([]store.OpRecord, len(history))
+				for i, op := range history {
+					newestFirst[len(history)-1-i] = op
+				}
 				jitem := toJSONItem(item)
 				jitem.Sync = toJSONSyncState(syncState)
 				detail := jsonItemDetail{
 					jsonItem: jitem,
 					Tip:      item.Tip,
-					History:  toJSONHistory(history),
+					History:  toJSONHistory(newestFirst),
 				}
 				return printJSON(detail)
 			}
@@ -63,6 +71,7 @@ func newShowCmd() *cobra.Command {
 			fmt.Printf("comment:     %s\n", comment)
 			fmt.Printf("owner:       %s <%s>\n", item.OwnerName, item.OwnerEmail)
 			fmt.Printf("created:     %s\n", item.CreatedAt.Format("2006-01-02 15:04:05 -0700"))
+			fmt.Printf("updated:     %s\n", item.UpdatedAt.Format("2006-01-02 15:04:05 -0700"))
 			fmt.Printf("sync:        %s\n", syncLine(syncState))
 			fmt.Println()
 			fmt.Println("history:")
@@ -70,7 +79,11 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, op := range history {
+			// store.History is oldest-first; print newest-first here to
+			// match the `history` command and `comment show`, rather than
+			// the reverse order this used to (inconsistently) print in.
+			for i := len(history) - 1; i >= 0; i-- {
+				op := history[i]
 				fmt.Printf("  %s  %s  %s <%s>\n",
 					op.When.Format("2006-01-02 15:04:05 -0700"), op.Commit[:12], op.AuthorName, op.AuthorEmail)
 				for _, line := range opActionLines(op) {

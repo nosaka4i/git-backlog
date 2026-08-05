@@ -233,7 +233,10 @@ touched (even just a comment) surfaces to the top of its tier, so stale,
 untouched items sink down instead of an old item squatting at the top of
 its tier forever by virtue of having been created first. Long titles
 truncate for display (~60 chars + "…"); `show` always prints the full
-title untruncated, plus the item's full op-log history. Both also report
+title untruncated, plus the item's full op-log history, newest first
+(same convention as `history` and `comment show`, even though
+`store.History` itself returns oldest-first — `show`'s RunE reverses it
+for display). Both also report
 each item's status against the last-known remote — see "Sync state"
 under Sync & conflict resolution above.
 
