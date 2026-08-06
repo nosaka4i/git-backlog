@@ -9,7 +9,7 @@ import (
 )
 
 func newAddCmd() *cobra.Command {
-	var listFlag, priorityFlag, descriptionFlag string
+	var trackFlag, priorityFlag, descriptionFlag string
 	var asAgent bool
 	cmd := &cobra.Command{
 		Use:   "add <title>",
@@ -23,7 +23,7 @@ func newAddCmd() *cobra.Command {
 			if title == "" {
 				return fmt.Errorf("title must not be empty")
 			}
-			list, err := store.ParseList(listFlag)
+			track, err := store.ParseTrack(trackFlag)
 			if err != nil {
 				return err
 			}
@@ -38,7 +38,7 @@ func newAddCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, err := store.CreateItem(title, list, priority, identity)
+			item, err := store.CreateItem(title, track, priority, identity)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func newAddCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&listFlag, "list", string(store.ListBacklog), "backlog|current|closed")
+	cmd.Flags().StringVar(&trackFlag, "track", string(store.TrackBacklog), "backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "p0|p1|p2")
 	cmd.Flags().StringVar(&descriptionFlag, "description", "", "set the item's description at creation (equivalent to add then describe)")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false,

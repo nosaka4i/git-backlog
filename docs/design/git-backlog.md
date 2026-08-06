@@ -28,7 +28,7 @@ Six fields, nothing else:
 | Field         | Type                              | Notes                                    |
 |---------------|------------------------------------|-------------------------------------------|
 | `title`       | string                             | brief, like a commit subject line          |
-| `list`        | `backlog` \| `current` \| `closed` | named after Trello's terminology; this IS the field that tracks bucket membership, no separate "status" concept |
+| `bucket`      | `backlog` \| `current` \| `closed` | which bucket the item's in, no separate "status" concept. Stored on disk as `list` permanently (see Storage model) — `bucket` is the CLI/Go-facing name only, renamed from `list` once the `all` command took over that name |
 | `priority`    | `p0` \| `p1` \| `p2` \| unset       | unset ≠ a literal "none" value — the entry is simply absent |
 | `owner`       | git identity (name + email)        | read from the create commit's author field, fixed permanently, no reassignment |
 | `description` | string, optional                   | permanent "what this is," single current value, replace-on-edit — see below |
@@ -53,7 +53,7 @@ version of "why," not a move toward comment threads, labels, or
 dependencies.
 
 `description` followed for a related but distinct reason: `title` alone
-has to serve two jobs — a short label for `all`'s compact list view *and*
+has to serve two jobs — a short label for `list`'s compact view *and*
 the full explanation of what an item is — and those pull in opposite
 directions once a title gets long enough to need truncating there. Rather
 than overload `title` further or make `comment` (explicitly the
@@ -67,12 +67,13 @@ from `comment`.
 ## Storage model
 
 - Each item is an append-only op-log: one real git **commit** per
-  operation (create, list change, priority change, title edit), chained
+  operation (create, bucket change, priority change, title edit), chained
   under a dedicated ref that moves forward with each new operation — same
   relationship as a branch ref to its commit history.
 - An operation's payload is a git **tree** with one named entry per field
   being set on that operation (e.g. a create op's tree has `title`,
-  `list`, `priority` entries; `priority` simply absent if unset). This
+  `list`, `priority` entries; `priority` simply absent if unset — the
+  on-disk entry is still named `list`, not `bucket`; see Schema). This
   means `git cat-file`/`git show <tree>:field` can inspect state directly
   with no custom parser, and an operation touching only one field reuses
   the already-existing blob for every field it didn't touch (git's normal
@@ -151,7 +152,7 @@ has to be told about.
 
 ### Sync state
 
-`all`/`show` report each item's status against the last-known remote —
+`list`/`show` report each item's status against the last-known remote —
 up to date, ahead (local commits not pushed), behind (remote commits not
 pulled), diverged (both sides have unpushed commits — the next `sync`
 will merge), or not yet synced (no remote-tracking ref for this item at
@@ -159,7 +160,7 @@ all). This is read-only: `internal/store.SyncState` (`internal/store/
 syncstate.go`) compares the local ref against the cached
 `refs/remotes/<remote>/backlog/<id>` tracking ref and never fetches —
 same as `git status` reporting a branch's ahead/behind from its cached
-upstream ref rather than a live network check. Deliberate: `all`/`show`
+upstream ref rather than a live network check. Deliberate: `list`/`show`
 staying side-effect-free (no implicit network I/O on a plain read) matters
 more than the numbers always being maximally fresh; the tradeoff is that
 this only reflects state as of the last `sync`.
@@ -185,22 +186,22 @@ reaching that point was already confirmed push-able as a fast-forward
 so this is safe, not a guess.
 
 No remote configured (or ambiguous, with none specified): sync state is
-omitted entirely from both `all` and `show`, not shown as an error or a
+omitted entirely from both `list` and `show`, not shown as an error or a
 zeroed-out summary — a backlog that's never used `sync` shouldn't have to
 see sync-related output at all.
 
 ## CLI command surface
 
-Every mutable field (`list`, `priority`, `title`) gets its own setter
-command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`/
-`move` special-cased verbs — closing an item is just
-`git backlog list <id> closed`.
+Every mutable field (`bucket`, `priority`, `title`) gets its own setter
+command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`
+special-cased verbs — closing an item is just
+`git backlog move <id> closed`.
 
 **Create**
 ```
-git backlog add "<title>" [--list backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--as-agent]
+git backlog add "<title>" [--bucket backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--as-agent]
 ```
-Defaults to `--list backlog` if omitted. `--priority` omitted ⇒ unset.
+Defaults to `--bucket backlog` if omitted. `--priority` omitted ⇒ unset.
 `--as-agent` — see Agent identity below — is meaningfully different here
 than on the Update commands: since the create commit's author becomes
 the item's permanent `owner`, `add --as-agent` doesn't just attribute one
@@ -221,13 +222,13 @@ line does both.
 
 **Read**
 ```
-git backlog all [--list <value>] [--priority <value>] [--closed-limit N] [--json]
+git backlog list [--bucket <value>] [--priority <value>] [--closed-limit N] [--json]
 git backlog show <id> [--json]
-git backlog history [--list <value>] [--priority <value>] [--json] [--no-pager]
+git backlog history [--bucket <value>] [--priority <value>] [--json] [--no-pager]
 ```
-`all` prints everything, grouped by list (current, backlog, then closed —
+`list` prints everything, grouped by bucket (current, backlog, then closed —
 what you're actively doing first, what's queued next, what's done last),
-then by priority tier within each list (p0, p1, p2, then unprioritized),
+then by priority tier within each bucket (p0, p1, p2, then unprioritized),
 sorted most-recently-updated-first within each group — an item you just
 touched (even just a comment) surfaces to the top of its tier, so stale,
 untouched items sink down instead of an old item squatting at the top of
@@ -241,10 +242,10 @@ each item's status against the last-known remote — see "Sync state"
 under Sync & conflict resolution above.
 
 A tool that's succeeding at its job accumulates `closed` items forever, so
-by default `all` caps the closed section to the 10 most recently *updated*
+by default `list` caps the closed section to the 10 most recently *updated*
 (not created) items — using the tip op-log commit's own timestamp, already
 read as part of loading the item, so no extra git calls. `--closed-limit 0`
-removes the cap; `--list closed` (an explicit, narrow ask) always shows the
+removes the cap; `--bucket closed` (an explicit, narrow ask) always shows the
 complete closed list regardless of the cap.
 
 `--json` swaps the human-readable output for machine-readable JSON (same
@@ -254,7 +255,7 @@ it.
 
 `history` flattens every item's op-log into one feed, newest-first,
 instead of `show`'s per-item view. Each entry renders its field changes as
-a short verb phrase — `Added item`, `Moved to <list>`, `Updated priority
+a short verb phrase — `Added item`, `Moved to <bucket>`, `Updated priority
 to <value>`, `Cleared priority`, `Renamed item` — rather than raw
 `field: value`, and `show <id>`'s own history section uses the same
 phrasing, so the two commands read as one consistent style rather than
@@ -266,12 +267,12 @@ header's author is whoever's commit that is (e.g. whoever ran `sync`
 locally for a merge commit), not necessarily whoever originally made each
 individual field change on the other side; a pre-existing property of
 diffing against a commit's first parent, not something `history`
-introduces. `--list`/`--priority` filter by an item's *current* state,
-same as `all` — not by what the value was at the time of each historical
+introduces. `--bucket`/`--priority` filter by an item's *current* state,
+same as `list` — not by what the value was at the time of each historical
 op.
 
 Since `history` is the union of every item's full op-log, it only grows —
-there's no cap like `all`'s `--closed-limit`. Instead it pages the same
+there's no cap like `list`'s `--closed-limit`. Instead it pages the same
 way `git log`/`git diff`/`git show` do: when stdout is a terminal, output
 is piped through a pager (`$GIT_PAGER`, then `core.pager`, then `$PAGER`,
 then `less` — the exact precedence `git-config(1)` documents for
@@ -282,7 +283,7 @@ matching git's own behavior of only paging interactive terminal output.
 
 **Update**
 ```
-git backlog list <id> <backlog|current|closed>
+git backlog move <id> <backlog|current|closed>
 git backlog priority <id> <p0|p1|p2|none>
 git backlog title <id> "<new title>"
 git backlog describe <id> "<text>"
@@ -367,7 +368,7 @@ necessarily make sense in every repo, and local config is what
 `backlog.init` itself already uses.
 
 **Usage**: `--as-agent` on `add` and the field-setter commands — `title`,
-`describe`, `priority`, `list`, `comment` — reads `backlog.agent.name`/
+`describe`, `priority`, `move`, `comment` — reads `backlog.agent.name`/
 `backlog.agent.email` and records that operation under the agent's
 identity instead of the ambient one:
 ```
@@ -392,7 +393,7 @@ unnoticed.
 (`OwnerName`/`OwnerEmail`) is read from the *create* commit's author
 specifically and is permanent by design (see Schema above — "no
 reassignment") — using `--as-agent` on a later `comment`/`describe`/
-`priority`/`list`/`title` op never changes who owns the item, only who's credited
+`priority`/`move`/`title` op never changes who owns the item, only who's credited
 for that one op-log entry. `add --as-agent` is the deliberate exception:
 because the create commit's author *is* the owner, using `--as-agent`
 there makes the agent the item's permanent owner, not just that one
@@ -440,7 +441,7 @@ actual code, not just asserted:
   reads as unset. No backfill, no default-value migration.
 - **New data, old binary**: an older binary simply never asks
   `fieldValue` for a field name it doesn't know about, so it's invisible
-  to `show`/`all` but not touched, corrupted, or lost — it's still sitting
+  to `show`/`list` but not touched, corrupted, or lost — it's still sitting
   right there in the tree object waiting for a binary that knows to look
   for it.
 - **Mixed-version `sync`**: the case most likely to actually happen (a
@@ -482,7 +483,7 @@ complexity with no current payoff.
 ## Monorepo scoping: considered and closed
 
 Discussed at length: prefixing ref paths with the directory an item was
-created in (`refs/backlog/<dir-path>/<hash>`), with `all` scoping to the
+created in (`refs/backlog/<dir-path>/<hash>`), with `list` scoping to the
 nearest enclosing directory via an upward walk (git/npm-root-style) — an
 empty prefix at repo root naturally matches every item, so root always
 shows everything with no special-casing. Also considered a scope field

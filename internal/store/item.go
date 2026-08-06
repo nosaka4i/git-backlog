@@ -13,10 +13,10 @@ import (
 // item's permanent owner (no reassignment, ever — see Schema in the
 // design doc), identity here doesn't just attribute one op like it does
 // for the other Set* functions: it decides who owns the item forever.
-func CreateItem(title string, list List, priority Priority, identity *Identity) (*Item, error) {
+func CreateItem(title string, track Track, priority Priority, identity *Identity) (*Item, error) {
 	entries, err := snapshotEntries(map[string]*string{
 		fieldTitle:    &title,
-		fieldList:     strPtr(string(list)),
+		fieldTrack:    strPtr(string(track)),
 		fieldPriority: priorityPtr(priority),
 	}, nil, 0)
 	if err != nil {
@@ -117,11 +117,55 @@ func AllItems() ([]*Item, error) {
 	return items, nil
 }
 
-// SetList records a list-change operation. identity is nil to use the
+// SetTrack records a track-change operation. identity is nil to use the
 // ambient git config, or an override (e.g. for an agent acting on
 // someone's behalf) — see Identity.
-func SetList(idPrefix string, list List, identity *Identity) (*Item, error) {
-	return applyOp(idPrefix, map[string]*string{fieldList: strPtr(string(list))}, "list: "+string(list), identity)
+func SetTrack(idPrefix string, track Track, identity *Identity) (*Item, error) {
+	return applyOp(idPrefix, map[string]*string{fieldTrack: strPtr(string(track))}, "track: "+string(track), identity)
+}
+
+// MigrateTrackField is a one-time, per-item cleanup: for an item still on
+// the legacy "list" tree entry (created before the track rename), it
+// records a single op-log commit that removes "list" and adds "track" with
+// the same value, then returns the migrated item. No-op (returns the item
+// unchanged) if the item already has a "track" entry. Not wired to any CLI
+// command — meant to be run by hand, once, against a given backlog; see
+// fieldList's doc comment in types.go for why this exists instead of a
+// silent rename.
+func MigrateTrackField(idPrefix string, identity *Identity) (*Item, error) {
+	id, err := ResolveID(idPrefix)
+	if err != nil {
+		return nil, err
+	}
+	ref := RefFor(id)
+	tip, err := gitx.Run("rev-parse", ref)
+	if err != nil {
+		return nil, err
+	}
+	tipCommit, err := gitx.CatCommit(tip)
+	if err != nil {
+		return nil, err
+	}
+	current, err := gitx.LsTree(tipCommit.Tree)
+	if err != nil {
+		return nil, err
+	}
+	if v, err := fieldValue(current, fieldTrack); err != nil {
+		return nil, err
+	} else if v != "" {
+		return LoadItem(id) // already migrated
+	}
+	listVal, err := fieldValue(current, fieldList)
+	if err != nil {
+		return nil, err
+	}
+	if listVal == "" {
+		return nil, fmt.Errorf("item %s has neither a list nor a track entry (corrupt?)", ShortID(id))
+	}
+	return applyOp(idPrefix, map[string]*string{
+		fieldList:  nil,
+		fieldTrack: &listVal,
+	}, "migrate: list field to track", identity)
 }
 
 // SetPriority records a priority-change operation. priority == PriorityNone
@@ -263,9 +307,17 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
-	listRaw, err := fieldValue(entries, fieldList)
+	trackRaw, err := fieldValue(entries, fieldTrack)
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
+	if trackRaw == "" {
+		// Not yet migrated (see MigrateTrackField) — fall back to the
+		// legacy "list" entry.
+		trackRaw, err = fieldValue(entries, fieldList)
+		if err != nil {
+			return nil, fmt.Errorf("item %s: %w", id, err)
+		}
 	}
 	comment, err := fieldValue(entries, fieldComment)
 	if err != nil {
@@ -284,7 +336,7 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 		Ref:         ref,
 		Tip:         tip,
 		Title:       title,
-		List:        List(listRaw),
+		Track:       Track(trackRaw),
 		Priority:    Priority(priorityRaw),
 		Description: description,
 		Comment:     comment,

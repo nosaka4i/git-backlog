@@ -9,7 +9,7 @@ import (
 )
 
 func newHistoryCmd() *cobra.Command {
-	var listFlag, priorityFlag string
+	var trackFlag, priorityFlag string
 	var jsonFlag, noPagerFlag bool
 	cmd := &cobra.Command{
 		Use:   "history",
@@ -23,12 +23,12 @@ func newHistoryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if listFlag != "" {
-				l, err := store.ParseList(listFlag)
+			if trackFlag != "" {
+				b, err := store.ParseTrack(trackFlag)
 				if err != nil {
 					return err
 				}
-				items = filterList(items, l)
+				items = filterTrack(items, b)
 			}
 			if priorityFlag != "" {
 				p, err := store.ParsePriority(priorityFlag)
@@ -74,7 +74,7 @@ func newHistoryCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&listFlag, "list", "", "filter to items currently in backlog|current|closed")
+	cmd.Flags().StringVar(&trackFlag, "track", "", "filter to items currently in backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "filter to items currently at p0|p1|p2|none")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&noPagerFlag, "no-pager", false, "don't pipe output through a pager, even on a terminal")

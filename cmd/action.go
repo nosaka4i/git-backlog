@@ -11,7 +11,11 @@ import (
 // command, so both read the same way.
 func actionLine(field string, removed bool, value string) string {
 	switch field {
-	case "list":
+	case "list", "track":
+		// "list" is the field's legacy on-disk name — still literally
+		// present in the immutable history of any op recorded before the
+		// track rename (see fieldList's doc comment in internal/store/
+		// types.go). Both render the same way.
 		return "Moved to " + value
 	case "priority":
 		if removed {
@@ -42,6 +46,9 @@ func opActionLines(op store.OpRecord) []string {
 	if isCreateOp(op) {
 		return []string{"Added item"}
 	}
+	if isMigrateTrackOp(op) {
+		return []string{"Migrated the track field's storage format (no value change)"}
+	}
 	lines := make([]string, 0, len(op.Changes))
 	for _, ch := range op.Changes {
 		lines = append(lines, actionLine(ch.Field, ch.Removed, ch.Value))
@@ -51,4 +58,15 @@ func opActionLines(op store.OpRecord) []string {
 
 func isCreateOp(op store.OpRecord) bool {
 	return strings.HasPrefix(op.Message, "add:")
+}
+
+// isMigrateTrackOp identifies MigrateTrackField's one-time op (see
+// internal/store/item.go): it always removes "list" and adds "track" with
+// the same value in a single commit, which would otherwise render as a
+// confusing "Moved to <value>" (from the "list" removal, value blank) plus
+// a raw "track: <value>" line — collapsing it to one clear line is more
+// honest about what actually happened (a storage-format change, not a real
+// move).
+func isMigrateTrackOp(op store.OpRecord) bool {
+	return strings.HasPrefix(op.Message, "migrate:")
 }

@@ -10,7 +10,7 @@ import (
 
 func TestCommentSetsAndClears(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestCommentSetsAndClears(t *testing.T) {
 
 func TestShowIncludesComment(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestShowIncludesComment(t *testing.T) {
 
 func TestCommentShowListsNewestFirst(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestCommentShowListsNewestFirst(t *testing.T) {
 
 func TestHistoryShowsClearedComment(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,37 +13,37 @@ import (
 	"github.com/nosaka4i/git-backlog/internal/gitx"
 )
 
-// List is the bucket an item currently belongs to.
-type List string
+// Track is the track an item currently belongs to.
+type Track string
 
 const (
-	ListBacklog List = "backlog"
-	ListCurrent List = "current"
-	ListClosed  List = "closed"
+	TrackBacklog Track = "backlog"
+	TrackCurrent Track = "current"
+	TrackClosed  Track = "closed"
 )
 
-// Rank orders lists for grouped display: current, backlog, then closed —
+// Rank orders tracks for grouped display: current, backlog, then closed —
 // what you're actively doing first, what's queued next, what's done last.
-func (l List) Rank() int {
-	switch l {
-	case ListCurrent:
+func (b Track) Rank() int {
+	switch b {
+	case TrackCurrent:
 		return 0
-	case ListBacklog:
+	case TrackBacklog:
 		return 1
-	case ListClosed:
+	case TrackClosed:
 		return 2
 	default:
 		return 3
 	}
 }
 
-// ParseList validates a user-supplied list value.
-func ParseList(s string) (List, error) {
-	switch List(s) {
-	case ListBacklog, ListCurrent, ListClosed:
-		return List(s), nil
+// ParseTrack validates a user-supplied track value.
+func ParseTrack(s string) (Track, error) {
+	switch Track(s) {
+	case TrackBacklog, TrackCurrent, TrackClosed:
+		return Track(s), nil
 	default:
-		return "", fmt.Errorf("invalid list %q (want backlog, current, or closed)", s)
+		return "", fmt.Errorf("invalid track %q (want backlog, current, or closed)", s)
 	}
 }
 
@@ -85,9 +85,23 @@ func (p Priority) Rank() int {
 
 // Tree entry field names. "clock" is an internal Lamport counter, not part
 // of the user-visible schema.
+//
+// fieldList/fieldTrack: the track field was originally named "list" on
+// disk. Renaming it in place would corrupt history — these are full
+// snapshot trees, not diffs, so the very next edit to an item still on
+// "list" would look like it cleared "list" and set a brand new "track"
+// field out of nowhere. Instead: CreateItem writes fieldTrack for every
+// new item; itemFromEntries reads fieldTrack and falls back to fieldList
+// for items that haven't been migrated; MigrateTrackField does that
+// migration explicitly, as one visible op per item (see item.go), rather
+// than silently on next edit. fieldList stays defined permanently so
+// already-recorded op-log history (which literally has "list" field
+// changes in it, forever, since those commits are immutable) keeps
+// rendering correctly.
 const (
 	fieldTitle       = "title"
 	fieldList        = "list"
+	fieldTrack       = "track"
 	fieldPriority    = "priority"
 	fieldComment     = "comment"
 	fieldDescription = "description"
@@ -121,7 +135,7 @@ type Item struct {
 	Ref         string
 	Tip         string // current op-log commit hash
 	Title       string
-	List        List
+	Track       Track
 	Priority    Priority
 	Description string // freeform, optional, permanent (single current value, replace-on-edit like Title); "" means never set
 	Comment     string // freeform, optional; "" means never set

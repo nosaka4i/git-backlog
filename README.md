@@ -23,8 +23,8 @@ Requires `$GOPATH/bin` (or `$GOBIN`) on your `PATH` — git finds
 git backlog init
 git backlog add "fix flaky test" --priority p1
 git backlog add "write docs"
-git backlog all
-git backlog list <id> current
+git backlog list
+git backlog move <id> current
 git backlog priority <id> p0
 git backlog show <id>
 git backlog sync
@@ -35,11 +35,11 @@ git backlog sync
 | Command | Effect |
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
-| `add "<title>" [--list backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--as-agent]` | Create an item (defaults to `--list backlog`, unset priority) |
-| `all [--list <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by list then priority, most-recently-updated-first within each group (empty lists shown as `(empty)`); shows sync status when a remote's configured |
+| `add "<title>" [--bucket backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--as-agent]` | Create an item (defaults to `--bucket backlog`, unset priority) |
+| `list [--bucket <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by bucket then priority, most-recently-updated-first within each group (empty buckets shown as `(empty)`); shows sync status when a remote's configured |
 | `show <id> [--json]` | Full item state plus its complete op-log history (newest first), including sync status |
-| `history [--list <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
-| `list <id> <backlog\|current\|closed> [--as-agent]` | Move an item between lists (closing an item is just `list <id> closed`) |
+| `history [--bucket <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
+| `move <id> <backlog\|current\|closed> [--as-agent]` | Move an item to a different bucket (closing an item is just `move <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |
 | `title <id> "<new title>" [--as-agent]` | Rename an item |
 | `describe <id> "<text>" [--as-agent]` | Set an item's description (empty string clears it) |
@@ -48,23 +48,23 @@ git backlog sync
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
 | `version` | Print the git-backlog version |
 
-`<id>` accepts any unambiguous prefix of an item's id (shown by `all` and
+`<id>` accepts any unambiguous prefix of an item's id (shown by `list` and
 `add` in git's usual auto-growing short form).
 
-`--json` on `all`/`show` prints machine-readable output instead (a JSON
-array of items for `all`, one item plus its full op-log history for
+`--json` on `list`/`show` prints machine-readable output instead (a JSON
+array of items for `list`, one item plus its full op-log history for
 `show`) — same filtering, same sort order, unset priority simply omitted
 from the object rather than printed as a placeholder string.
 
-A successful backlog accumulates `closed` items forever, so `all` caps the
+A successful backlog accumulates `closed` items forever, so `list` caps the
 closed section to the 10 most recently updated items by default (a
 `... and N more` note shows how many are hidden). `--closed-limit 0`
-removes the cap; `--list closed` also shows the full closed list, since
+removes the cap; `--bucket closed` also shows the full closed list, since
 asking for it specifically is already an explicit, narrow request.
 
 ### Sync status
 
-When a remote's configured, `all` prints a `git status`-style summary at
+When a remote's configured, `list` prints a `git status`-style summary at
 the top ("2 ahead, 1 behind, 1 diverged, 3 not yet synced" — or "up to
 date with origin" when there's nothing to report), and marks affected
 items in place: `↑N` (N local commits not yet pushed), `↓N` (N remote
@@ -77,6 +77,15 @@ reflects state as of the last `sync`, not a live check; run `sync` again
 for fresher numbers. With no remote configured at all, both commands omit
 sync status entirely rather than showing an empty/zeroed-out summary.
 
+Want to see *what* changed on an ahead/behind/diverged item, not just that
+it did? There's no `git backlog diff` — plain `git diff` against the two
+refs already gives a clean field-level diff for free, once the noisy
+`clock` field (bumped on every op, regardless of what else changed) is
+excluded:
+```
+git diff refs/remotes/<remote>/backlog/<id> refs/backlog/<id> -- . ':!clock'
+```
+
 `comment` is a single freeform field, edited the same way as `title` (each
 edit replaces the value; `comment <id> ""` clears it). `show <id>` and
 `history` only render `Updated comment`/`Cleared comment` for it, same as
@@ -87,7 +96,7 @@ which walks the op-log and prints just the comment changes, newest first
 `description` is also single freeform field, replace-on-edit just like
 `title`/`comment` — but semantically different from `comment`: it's meant
 to hold a single *permanent* explanation of what the item actually is
-(only shown in `show`/`--json`, never in `all`'s compact list view),
+(only shown in `show`/`--json`, never in `list`'s compact view),
 whereas `comment` is for ongoing, conversational back-and-forth (hence
 `comment show`'s threaded history view). There's no `describe show` —
 unlike a comment thread, a description has one current value worth
@@ -95,6 +104,36 @@ showing, not a log worth browsing. `add --description "<text>"` sets it
 at creation time as a convenience — under the hood it's still two op-log
 entries (create, then a description edit), the same as running `add` then
 `describe` by hand, just in one command line.
+
+### Moving items between repos
+
+There's no dedicated import/export command — an item's id *is* its create
+commit's hash, so its ref round-trips through plain git unchanged, history
+and owner attribution included. Two procedures cover the common cases:
+
+**Move a single item to a different repo** (e.g. it was accidentally
+added to the wrong one):
+```
+# from the repo it's in now, push just that one ref to the right remote
+git push <target-remote> refs/backlog/<id>:refs/backlog/<id>
+
+# from a checkout of the target repo, pull it into refs/backlog
+git fetch <that-remote> refs/backlog/<id>:refs/backlog/<id>
+```
+`list`/`show` pick it up immediately — no import step. Then remove it from
+the original repo if it shouldn't stay there:
+```
+git push <original-remote> :refs/backlog/<id>   # delete on the remote
+git update-ref -d refs/backlog/<id>             # delete the local copy
+```
+
+**Fork the whole backlog forward** (e.g. deprecating a repo in favor of
+a new one): this is just `sync` against a new remote — it already pushes
+every item, local-only ones included.
+```
+git remote add fork <new-repo-url>
+git backlog sync --remote fork
+```
 
 ### Agent identity
 
@@ -113,7 +152,7 @@ git config backlog.agent.email "noreply@anthropic.com"
 (`noreply@anthropic.com` is just an example — any name/email works, no
 real account or mailbox required; see below.)
 
-then pass `--as-agent` on `add`/`title`/`describe`/`priority`/`list`/`comment` to
+then pass `--as-agent` on `add`/`title`/`describe`/`priority`/`move`/`comment` to
 record that specific operation under the agent's identity instead:
 ```
 git backlog comment <id> "looks flaky under -race" --as-agent
@@ -132,7 +171,7 @@ fail. (On GitHub specifically, an author email that doesn't match a
 verified account just renders as plain gray-icon text instead of a
 linked avatar in the web UI — cosmetic only, no functional difference.)
 
-On `title`/`describe`/`priority`/`list`/`comment`, `--as-agent` only affects that
+On `title`/`describe`/`priority`/`move`/`comment`, `--as-agent` only affects that
 one op-log entry — it never touches an item's `owner` (fixed permanently
 from the *create* commit, per the design doc's "no reassignment" rule).
 `add` is the one exception: since the create commit's author **is** the
@@ -153,8 +192,8 @@ git's own precedence, so an existing git pager setup already applies);
 paged.
 
 `history` flattens every item's op-log into one chronological feed —
-same `--list`/`--priority` filters as `all`, applied to items' *current*
-state (so `--list current` shows the full history of everything presently
+same `--bucket`/`--priority` filters as `list`, applied to items' *current*
+state (so `--bucket current` shows the full history of everything presently
 in `current`, including its `Added item` entry from back when it may have
 started in `backlog`). Each entry shows the item's current title (not its
 title at the time of that operation) so entries stay identifiable even

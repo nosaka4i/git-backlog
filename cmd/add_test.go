@@ -28,14 +28,14 @@ func TestAddDefaultsListBacklogPriorityUnset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.Title != "fix flaky test" || item.List != store.ListBacklog || item.Priority != store.PriorityNone {
+	if item.Title != "fix flaky test" || item.Track != store.TrackBacklog || item.Priority != store.PriorityNone {
 		t.Fatalf("unexpected item: %+v", item)
 	}
 }
 
 func TestAddWithListAndPriorityFlags(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	out, err := runCmd(t, newAddCmd(), "ship release", "--list", "current", "--priority", "p0")
+	out, err := runCmd(t, newAddCmd(), "ship release", "--track", "current", "--priority", "p0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestAddWithListAndPriorityFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.List != store.ListCurrent || item.Priority != store.PriorityP0 {
+	if item.Track != store.TrackCurrent || item.Priority != store.PriorityP0 {
 		t.Fatalf("unexpected item: %+v", item)
 	}
 }
@@ -105,7 +105,7 @@ func TestAddRejectsEmptyTitle(t *testing.T) {
 
 func TestAddRejectsInvalidListAndPriority(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := runCmd(t, newAddCmd(), "x", "--list", "bogus"); err == nil {
+	if _, err := runCmd(t, newAddCmd(), "x", "--track", "bogus"); err == nil {
 		t.Fatal("expected an error for an invalid --list value")
 	}
 	if _, err := runCmd(t, newAddCmd(), "x", "--priority", "p9"); err == nil {

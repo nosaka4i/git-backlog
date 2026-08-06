@@ -23,10 +23,10 @@ func init() {
 	rootCmd.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
-		newAllCmd(),
+		newListCmd(),
 		newShowCmd(),
 		newHistoryCmd(),
-		newListCmd(),
+		newMoveCmd(),
 		newPriorityCmd(),
 		newTitleCmd(),
 		newDescribeCmd(),

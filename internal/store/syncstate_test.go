@@ -19,7 +19,7 @@ func fetchOnly(t *testing.T, remote string) {
 func TestSyncStateNotSyncedBeforeFirstSync(t *testing.T) {
 	fx := newSyncFixture(t)
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestSyncStateNotSyncedBeforeFirstSync(t *testing.T) {
 func TestSyncStateUpToDateAfterSync(t *testing.T) {
 	fx := newSyncFixture(t)
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestSyncStateUpToDateAfterSync(t *testing.T) {
 func TestSyncStateAheadAfterLocalEditNotYetPushed(t *testing.T) {
 	fx := newSyncFixture(t)
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestSyncStateAheadAfterLocalEditNotYetPushed(t *testing.T) {
 func TestSyncStateBehindWhenRemoteHasNewerCommit(t *testing.T) {
 	fx := newSyncFixture(t)
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestSyncStateBehindWhenRemoteHasNewerCommit(t *testing.T) {
 func TestSyncStateDivergedWhenBothSidesHaveUnsyncedEdits(t *testing.T) {
 	fx := newSyncFixture(t)
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

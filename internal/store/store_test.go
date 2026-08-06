@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nosaka4i/git-backlog/internal/gitx"
@@ -8,12 +9,12 @@ import (
 
 func TestParseList(t *testing.T) {
 	for _, ok := range []string{"backlog", "current", "closed"} {
-		if _, err := ParseList(ok); err != nil {
-			t.Errorf("ParseList(%q) unexpected error: %v", ok, err)
+		if _, err := ParseTrack(ok); err != nil {
+			t.Errorf("ParseTrack(%q) unexpected error: %v", ok, err)
 		}
 	}
-	if _, err := ParseList("bogus"); err == nil {
-		t.Error("ParseList(\"bogus\") expected error, got nil")
+	if _, err := ParseTrack("bogus"); err == nil {
+		t.Error("ParseTrack(\"bogus\") expected error, got nil")
 	}
 }
 
@@ -61,11 +62,11 @@ func TestRefForIDFromRef(t *testing.T) {
 
 func TestCreateAndLoadItem(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.Title != "fix flaky test" || item.List != ListBacklog || item.Priority != PriorityP1 {
+	if item.Title != "fix flaky test" || item.Track != TrackBacklog || item.Priority != PriorityP1 {
 		t.Fatalf("unexpected item: %+v", item)
 	}
 	if item.ID != item.Tip {
@@ -89,7 +90,7 @@ func TestCreateAndLoadItem(t *testing.T) {
 
 func TestCreateItemDefaultsPriorityUnset(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("write docs", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("write docs", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,17 +116,17 @@ func TestResolveIDErrors(t *testing.T) {
 
 func TestSetListSetPriorityEdit(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	updated, err := SetList(item.ID, ListCurrent, nil)
+	updated, err := SetTrack(item.ID, TrackCurrent, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.List != ListCurrent {
-		t.Fatalf("List = %s, want current", updated.List)
+	if updated.Track != TrackCurrent {
+		t.Fatalf("Track = %s, want current", updated.Track)
 	}
 	if updated.Priority != PriorityP1 {
 		t.Fatalf("priority should survive a list change unchanged, got %s", updated.Priority)
@@ -158,7 +159,7 @@ func TestSetListSetPriorityEdit(t *testing.T) {
 
 func TestSetComment(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +186,7 @@ func TestSetComment(t *testing.T) {
 
 func TestSetCommentAsAgentIdentity(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +213,7 @@ func TestSetCommentAsAgentIdentity(t *testing.T) {
 
 func TestSetDescription(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +240,7 @@ func TestSetDescription(t *testing.T) {
 
 func TestSetDescriptionAsAgentIdentity(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +267,7 @@ func TestAllItems(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	titles := []string{"a", "b", "c"}
 	for _, ttl := range titles {
-		if _, err := CreateItem(ttl, ListBacklog, PriorityNone, nil); err != nil {
+		if _, err := CreateItem(ttl, TrackBacklog, PriorityNone, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -281,14 +282,14 @@ func TestAllItems(t *testing.T) {
 
 func TestHistoryTracksEachOperation(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := SetPriority(item.ID, PriorityP2, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SetList(item.ID, ListClosed, nil); err != nil {
+	if _, err := SetTrack(item.ID, TrackClosed, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -307,19 +308,19 @@ func TestHistoryTracksEachOperation(t *testing.T) {
 	// so it's simply absent, not a 3rd field); later ops touch only what
 	// changed.
 	if len(history[0].Changes) != 2 {
-		t.Fatalf("create op changes = %+v, want 2 fields (title, list)", history[0].Changes)
+		t.Fatalf("create op changes = %+v, want 2 fields (title, track)", history[0].Changes)
 	}
 	if len(history[1].Changes) != 1 || history[1].Changes[0].Field != fieldPriority {
 		t.Fatalf("priority op changes = %+v", history[1].Changes)
 	}
-	if len(history[2].Changes) != 1 || history[2].Changes[0].Field != fieldList {
-		t.Fatalf("list op changes = %+v", history[2].Changes)
+	if len(history[2].Changes) != 1 || history[2].Changes[0].Field != fieldTrack {
+		t.Fatalf("track op changes = %+v", history[2].Changes)
 	}
 }
 
 func TestHistoryRecordsClearedField(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,5 +334,101 @@ func TestHistoryRecordsClearedField(t *testing.T) {
 	last := history[len(history)-1]
 	if len(last.Changes) != 1 || !last.Changes[0].Removed || last.Changes[0].Field != fieldPriority {
 		t.Fatalf("expected a removed priority change, got %+v", last.Changes)
+	}
+}
+
+// createLegacyItem builds an item the way CreateItem used to, before the
+// track rename: a "list" tree entry instead of "track". Used to simulate a
+// pre-migration item for TestMigrateTrackField* below.
+func createLegacyItem(t *testing.T, title string, track Track, priority Priority) *Item {
+	t.Helper()
+	entries, err := snapshotEntries(map[string]*string{
+		fieldTitle:    &title,
+		fieldList:     strPtr(string(track)),
+		fieldPriority: priorityPtr(priority),
+	}, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := gitx.MkTree(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := gitx.CommitTree(tree, nil, "add: "+title)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gitx.UpdateRef(RefFor(commit), commit, ""); err != nil {
+		t.Fatal(err)
+	}
+	item, err := LoadItem(commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return item
+}
+
+func TestMigrateTrackFieldConvertsLegacyItem(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	legacy := createLegacyItem(t, "fix flaky test", TrackCurrent, PriorityP1)
+	if legacy.Track != TrackCurrent {
+		t.Fatalf("legacy item track = %q, want current (via fallback to the list entry)", legacy.Track)
+	}
+
+	migrated, err := MigrateTrackField(legacy.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated.Track != TrackCurrent {
+		t.Fatalf("migrated item track = %q, want current (value must survive the migration)", migrated.Track)
+	}
+	if migrated.ID != legacy.ID {
+		t.Fatalf("migration must not change the item's id: got %s, want %s", migrated.ID, legacy.ID)
+	}
+
+	history, err := History(migrated.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("expected 2 ops (create, migrate), got %d", len(history))
+	}
+	last := history[len(history)-1]
+	if !strings.HasPrefix(last.Message, "migrate:") {
+		t.Fatalf("last op message = %q, want a migrate: prefix", last.Message)
+	}
+	var sawListRemoved, sawTrackAdded bool
+	for _, ch := range last.Changes {
+		switch {
+		case ch.Field == fieldList && ch.Removed:
+			sawListRemoved = true
+		case ch.Field == fieldTrack && ch.Value == string(TrackCurrent):
+			sawTrackAdded = true
+		}
+	}
+	if !sawListRemoved || !sawTrackAdded {
+		t.Fatalf("migrate op changes = %+v, want list removed + track added", last.Changes)
+	}
+}
+
+func TestMigrateTrackFieldIsNoOpOnAlreadyMigratedItem(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("write docs", TrackBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := MigrateTrackField(item.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated.Tip != item.Tip {
+		t.Fatalf("expected no new commit for an already-migrated item: tip changed from %s to %s", item.Tip, migrated.Tip)
+	}
+	history, err := History(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected no new op recorded, got %d ops", len(history))
 	}
 }

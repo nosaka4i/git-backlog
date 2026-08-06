@@ -12,7 +12,7 @@ import (
 
 func TestShowSyncLineNoRemoteConfigured(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,10 +27,10 @@ func TestShowSyncLineNoRemoteConfigured(t *testing.T) {
 
 func TestAllHasNoSummaryOrMarkersWithoutARemote(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil); err != nil {
+	if _, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runCmd(t, newAllCmd())
+	out, err := runCmd(t, newListCmd())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,14 +70,14 @@ func TestAllShowsUpToDateSummaryAfterSync(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil); err != nil {
+	if _, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runCmd(t, newSyncCmd()); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := runCmd(t, newAllCmd())
+	out, err := runCmd(t, newListCmd())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestAllMarksAheadItemAndJSONIncludesSyncStatus(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestAllMarksAheadItemAndJSONIncludesSyncStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runCmd(t, newAllCmd())
+	out, err := runCmd(t, newListCmd())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestAllMarksAheadItemAndJSONIncludesSyncStatus(t *testing.T) {
 		t.Fatalf("expected the item's line to have the ↑1 marker:\n%s", out)
 	}
 
-	jsonOut, err := runCmd(t, newAllCmd(), "--json")
+	jsonOut, err := runCmd(t, newListCmd(), "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestAllMarksDivergedItem(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestAllMarksDivergedItem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runCmd(t, newAllCmd())
+	out, err := runCmd(t, newListCmd())
 	if err != nil {
 		t.Fatal(err)
 	}

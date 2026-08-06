@@ -58,7 +58,7 @@ func TestSyncAdoptsItemsFromRemote(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestSyncFastForwards(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestSyncMergesConcurrentEditsToDifferentFields(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityP1, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestSyncMergesConcurrentEditsToDifferentFields(t *testing.T) {
 	}
 
 	chdir(t, fx.repoA)
-	if _, err := SetList(item.ID, ListCurrent, nil); err != nil {
+	if _, err := SetTrack(item.ID, TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -173,8 +173,8 @@ func TestSyncMergesConcurrentEditsToDifferentFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if final.List != ListCurrent {
-		t.Errorf("List = %s, want current (A's edit should survive)", final.List)
+	if final.Track != TrackCurrent {
+		t.Errorf("Track = %s, want current (A's edit should survive)", final.Track)
 	}
 	if final.Priority != PriorityP0 {
 		t.Errorf("Priority = %s, want p0 (B's edit should survive)", final.Priority)
@@ -201,7 +201,7 @@ func TestSyncSameFieldConflictConvergesDeterministically(t *testing.T) {
 	fx := newSyncFixture(t)
 
 	chdir(t, fx.repoA)
-	item, err := CreateItem("fix flaky test", ListBacklog, PriorityNone, nil)
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

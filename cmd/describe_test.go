@@ -10,7 +10,7 @@ import (
 
 func TestDescribeSetsAndClears(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDescribeSetsAndClears(t *testing.T) {
 
 func TestShowIncludesDescription(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestShowIncludesDescription(t *testing.T) {
 
 func TestHistoryShowsClearedDescription(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestDescribeAsAgentAttributesTheOp(t *testing.T) {
 	if err := gitx.SetConfig("backlog.agent.email", "claude@example.com"); err != nil {
 		t.Fatal(err)
 	}
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

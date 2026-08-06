@@ -11,7 +11,7 @@ import (
 
 func TestToJSONItemIncludesCreatedAndUpdatedAt(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestToJSONItemIncludesCreatedAndUpdatedAt(t *testing.T) {
 
 func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 		t.Fatalf("expected unset comment omitted from JSON, got %s", b)
 	}
 
-	item2, err := store.CreateItem("ship release", store.ListCurrent, store.PriorityP0, nil)
+	item2, err := store.CreateItem("ship release", store.TrackCurrent, store.PriorityP0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 	if err := json.Unmarshal(b2, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.ID != item2.ID || decoded.Title != item2.Title || decoded.List != "current" || decoded.Priority != "p0" {
+	if decoded.ID != item2.ID || decoded.Title != item2.Title || decoded.Track != "current" || decoded.Priority != "p0" {
 		t.Fatalf("decoded = %+v", decoded)
 	}
 	if decoded.Comment != "needs sign-off from bob" {
@@ -84,7 +84,7 @@ func TestToJSONItemOmitsUnsetPriority(t *testing.T) {
 
 func TestToJSONHistoryMarksRemovedFields(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

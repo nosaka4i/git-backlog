@@ -20,7 +20,7 @@ type jsonItem struct {
 	ID          string         `json:"id"`
 	Title       string         `json:"title"`
 	Description string         `json:"description,omitempty"`
-	List        string         `json:"list"`
+	Track       string         `json:"track"`
 	Priority    string         `json:"priority,omitempty"`
 	Comment     string         `json:"comment,omitempty"`
 	Owner       jsonOwner      `json:"owner"`
@@ -34,7 +34,7 @@ func toJSONItem(it *store.Item) jsonItem {
 		ID:          it.ID,
 		Title:       it.Title,
 		Description: it.Description,
-		List:        string(it.List),
+		Track:       string(it.Track),
 		Priority:    string(it.Priority),
 		Comment:     it.Comment,
 		Owner:       jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},

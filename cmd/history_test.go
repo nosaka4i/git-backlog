@@ -18,16 +18,16 @@ const gitTimestampResolution = 1100 * time.Millisecond
 
 func TestHistoryFlatChronologicalAcrossItems(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	a, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	a, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone, nil)
+	b, err := store.CreateItem("write docs", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(gitTimestampResolution)
-	if _, err := store.SetList(a.ID, store.ListCurrent, nil); err != nil {
+	if _, err := store.SetTrack(a.ID, store.TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.SetPriority(b.ID, store.PriorityP0, nil); err != nil {
@@ -70,7 +70,7 @@ func maxIndex(s string, subs ...string) int {
 
 func TestHistoryShowsClearedPriorityAndRename(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,16 +95,16 @@ func TestHistoryShowsClearedPriorityAndRename(t *testing.T) {
 
 func TestHistoryListAndPriorityFilters(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	inCurrent, err := store.CreateItem("in current", store.ListCurrent, store.PriorityP0, nil)
+	inCurrent, err := store.CreateItem("in current", store.TrackCurrent, store.PriorityP0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	inBacklog, err := store.CreateItem("in backlog", store.ListBacklog, store.PriorityP1, nil)
+	inBacklog, err := store.CreateItem("in backlog", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := runCmd(t, newHistoryCmd(), "--list", "current")
+	out, err := runCmd(t, newHistoryCmd(), "--track", "current")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestHistoryListAndPriorityFilters(t *testing.T) {
 
 func TestHistoryInvalidFilters(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	if _, err := runCmd(t, newHistoryCmd(), "--list", "bogus"); err == nil {
+	if _, err := runCmd(t, newHistoryCmd(), "--track", "bogus"); err == nil {
 		t.Fatal("expected an error for an invalid --list value")
 	}
 	if _, err := runCmd(t, newHistoryCmd(), "--priority", "p9"); err == nil {
@@ -136,12 +136,12 @@ func TestHistoryInvalidFilters(t *testing.T) {
 
 func TestHistoryJSON(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(gitTimestampResolution)
-	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
+	if _, err := store.SetTrack(item.ID, store.TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -160,7 +160,7 @@ func TestHistoryJSON(t *testing.T) {
 	if entries[0].ItemID != item.ID || entries[0].Title != "fix flaky test" {
 		t.Fatalf("entries[0] = %+v", entries[0])
 	}
-	if len(entries[0].Changes) != 1 || entries[0].Changes[0].Field != "list" || entries[0].Changes[0].Value != "current" {
+	if len(entries[0].Changes) != 1 || entries[0].Changes[0].Field != "track" || entries[0].Changes[0].Value != "current" {
 		t.Fatalf("entries[0].Changes = %+v", entries[0].Changes)
 	}
 	if entries[0].Author.Name != "alice" {
@@ -189,7 +189,7 @@ func TestHistoryMergeCommitShowsMultipleActionsUnderOneHeader(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestHistoryMergeCommitShowsMultipleActionsUnderOneHeader(t *testing.T) {
 	}
 
 	chdirTo(t, repoA)
-	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
+	if _, err := store.SetTrack(item.ID, store.TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 

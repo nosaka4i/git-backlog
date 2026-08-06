@@ -40,7 +40,7 @@ func TestSyncReportsAdoption(t *testing.T) {
 	if err := gitx.SetConfig("backlog.init", "true"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil); err != nil {
+	if _, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runCmd(t, newSyncCmd()); err != nil {

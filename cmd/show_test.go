@@ -10,11 +10,11 @@ import (
 
 func TestShowHumanOutput(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
+	if _, err := store.SetTrack(item.ID, store.TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runCmd(t, newShowCmd(), item.ID)
@@ -23,7 +23,7 @@ func TestShowHumanOutput(t *testing.T) {
 	}
 	for _, want := range []string{
 		"title:       fix flaky test",
-		"list:        current",
+		"track:       current",
 		"priority:    p1",
 		"owner:       alice <alice@example.com>",
 		"created:     ",
@@ -40,7 +40,7 @@ func TestShowHumanOutput(t *testing.T) {
 
 func TestShowUnsetPriorityPrintsUnset(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("write docs", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("write docs", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +55,11 @@ func TestShowUnsetPriorityPrintsUnset(t *testing.T) {
 
 func TestShowJSONIncludesHistory(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityP1, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityP1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.SetList(item.ID, store.ListCurrent, nil); err != nil {
+	if _, err := store.SetTrack(item.ID, store.TrackCurrent, nil); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runCmd(t, newShowCmd(), item.ID, "--json")
@@ -70,7 +70,7 @@ func TestShowJSONIncludesHistory(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &detail); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	if detail.ID != item.ID || detail.List != "current" {
+	if detail.ID != item.ID || detail.Track != "current" {
 		t.Fatalf("detail = %+v", detail)
 	}
 	if detail.Tip == detail.ID {
@@ -80,14 +80,14 @@ func TestShowJSONIncludesHistory(t *testing.T) {
 		t.Fatalf("history = %d ops, want 2", len(detail.History))
 	}
 	// Newest first: the list-change op should come before the create op.
-	if len(detail.History[0].Changes) == 0 || detail.History[0].Changes[0].Field != "list" {
+	if len(detail.History[0].Changes) == 0 || detail.History[0].Changes[0].Field != "track" {
 		t.Fatalf("expected the list-change op first (newest), got %+v", detail.History[0])
 	}
 }
 
 func TestShowHistoryIsNewestFirst(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	item, err := store.CreateItem("fix flaky test", store.ListBacklog, store.PriorityNone, nil)
+	item, err := store.CreateItem("fix flaky test", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

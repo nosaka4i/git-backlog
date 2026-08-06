@@ -62,7 +62,7 @@ func newShowCmd() *cobra.Command {
 				description = item.Description
 			}
 			fmt.Printf("description: %s\n", description)
-			fmt.Printf("list:        %s\n", item.List)
+			fmt.Printf("track:       %s\n", item.Track)
 			fmt.Printf("priority:    %s\n", priority)
 			comment := "(none)"
 			if item.Comment != "" {
