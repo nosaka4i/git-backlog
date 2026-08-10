@@ -23,21 +23,27 @@ code — git-bug is GPL-3.0, this is MIT), independently implemented in Go.
 
 ## Schema
 
-Six fields, nothing else:
+Seven fields, nothing else:
 
 | Field         | Type                              | Notes                                    |
 |---------------|------------------------------------|-------------------------------------------|
 | `title`       | string                             | brief, like a commit subject line          |
-| `bucket`      | `backlog` \| `current` \| `closed` | which bucket the item's in, no separate "status" concept. Stored on disk as `list` permanently (see Storage model) — `bucket` is the CLI/Go-facing name only, renamed from `list` once the `all` command took over that name |
+| `track`       | `backlog` \| `current` \| `closed` | which track the item's in, no separate "status" concept. Named `list` on disk originally (and `bucket` briefly in the CLI mid-rename); the field is `track` now — a one-time per-item migration rewrites the on-disk entry, with the legacy `list` entry still read as a fallback for un-migrated items (see Storage model) |
 | `priority`    | `p0` \| `p1` \| `p2` \| unset       | unset ≠ a literal "none" value — the entry is simply absent |
 | `owner`       | git identity (name + email)        | read from the create commit's author field, fixed permanently, no reassignment |
 | `description` | string, optional                   | permanent "what this is," single current value, replace-on-edit — see below |
 | `comment`     | string, optional                   | freeform "why," not threaded — see below |
+| `labels`      | list of strings, optional          | flat, free-form grouping tags (e.g. `sprint-xyz`); many per item; stored as one newline-delimited, sorted, deduped blob, absent when empty — see below |
 | `id`          | content hash (of the create commit)| permanent forever, displayed as an auto-growing short prefix (`git rev-parse --short` convention) |
 
 Explicitly excluded (see requirements doc's non-goals for the reasoning
-behind each): label/type, references/dependencies, ordinal/fractional-index
+behind each): references/dependencies, ordinal/fractional-index
 ranking (Trello drag-to-reorder), owner reassignment.
+
+`labels` was on this excluded list too ("label/type"), on the same theory
+that grouping belonged elsewhere. Revisited and added — see "Labels" below
+for why flat labels earn their place while heavier grouping (milestones,
+key=value labels) stays out.
 
 `comment` was originally on this excluded list too ("comments/notes"), on
 the theory that WHY/HOW belongs in GitHub Issues or a
@@ -49,8 +55,9 @@ narrow, though: `comment` is a single freeform field, edited the same way
 as `title` (each edit fully replaces the value; no threading, no per-note
 authorship beyond whichever op-log commit made that edit). It does not
 reopen the rest of the excluded list — this is deliberately the smallest
-version of "why," not a move toward comment threads, labels, or
-dependencies.
+version of "why," not a move toward comment threads or dependencies.
+(Labels did later come off the excluded list, but as their own separate
+field — see "Labels" below — not as anything layered onto `comment`.)
 
 `description` followed for a related but distinct reason: `title` alone
 has to serve two jobs — a short label for `list`'s compact view *and*
@@ -64,16 +71,39 @@ freeform string, replace-on-edit exactly like `title`, no threading, no
 a log worth browsing, which is exactly the property that distinguishes it
 from `comment`.
 
+`labels` earns a place the excluded "label/type" never did because it
+answers a concrete retrieval need the other fields can't: "show me
+everything in sprint xyz." A label is a flat, free-form string; an item
+carries any number of them; you attach/detach them and filter `list` and
+`history` by them (`--label`, AND semantics like `gh issue list`). Kept
+deliberately minimal — the two obvious heavier variants are both left out.
+*key=value* labels (kubectl/docker) are more machinery than the grouping
+need calls for, and *milestones* (a first-class object with a due date, a
+completion view, one-per-item) are a genuinely different feature; a
+`sprint-xyz` label already delivers the "bundle and search" use case
+without either, so milestones stay deferred until due-dates/burndown are
+actually wanted. Storage stays inside the existing full-snapshot model:
+the whole set lives in a single `labels` tree blob, newline-delimited and
+sorted+deduped so it's canonical (the same set added in any order is the
+same blob, producing no spurious history diffs), and absent entirely when
+empty so un-labeled items — including every item created before labels
+existed — carry no `labels` entry and are unaffected. Edits are
+whole-set replacements (`AddLabels`/`RemoveLabels` merge then write), so an
+op-log entry records the resulting set, rendered as `Set labels to a, b` /
+`Cleared labels` — honest to the snapshot model rather than pretending to
+track per-label add/remove deltas it doesn't store.
+
 ## Storage model
 
 - Each item is an append-only op-log: one real git **commit** per
-  operation (create, bucket change, priority change, title edit), chained
+  operation (create, track change, priority change, title edit), chained
   under a dedicated ref that moves forward with each new operation — same
   relationship as a branch ref to its commit history.
 - An operation's payload is a git **tree** with one named entry per field
   being set on that operation (e.g. a create op's tree has `title`,
-  `list`, `priority` entries; `priority` simply absent if unset — the
-  on-disk entry is still named `list`, not `bucket`; see Schema). This
+  `track`, `priority` entries; `priority` simply absent if unset — older
+  items may still carry a legacy `list` entry instead of `track`, read as a
+  fallback until migrated; see Schema). This
   means `git cat-file`/`git show <tree>:field` can inspect state directly
   with no custom parser, and an operation touching only one field reuses
   the already-existing blob for every field it didn't touch (git's normal
@@ -192,16 +222,19 @@ see sync-related output at all.
 
 ## CLI command surface
 
-Every mutable field (`bucket`, `priority`, `title`) gets its own setter
+Every mutable field (`track`, `priority`, `title`) gets its own setter
 command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`
 special-cased verbs — closing an item is just
 `git backlog move <id> closed`.
 
 **Create**
 ```
-git backlog add "<title>" [--bucket backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--as-agent]
+git backlog add "<title>" [--track backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--label <name>]... [--as-agent]
 ```
-Defaults to `--bucket backlog` if omitted. `--priority` omitted ⇒ unset.
+Defaults to `--track backlog` if omitted. `--priority` omitted ⇒ unset.
+`--label` is repeatable and, like `--description`, is a convenience that
+just runs `AddLabels` right after `CreateItem` rather than growing
+`CreateItem`'s signature — same two-op result as `add` then `label`.
 `--as-agent` — see Agent identity below — is meaningfully different here
 than on the Update commands: since the create commit's author becomes
 the item's permanent `owner`, `add --as-agent` doesn't just attribute one
@@ -222,13 +255,13 @@ line does both.
 
 **Read**
 ```
-git backlog list [--bucket <value>] [--priority <value>] [--closed-limit N] [--json]
+git backlog list [--track <value>] [--priority <value>] [--label <value>]... [--closed-limit N] [--no-pager] [--json]
 git backlog show <id> [--json]
-git backlog history [--bucket <value>] [--priority <value>] [--json] [--no-pager]
+git backlog history [--track <value>] [--priority <value>] [--label <value>]... [--json] [--no-pager]
 ```
-`list` prints everything, grouped by bucket (current, backlog, then closed —
+`list` prints everything, grouped by track (current, backlog, then closed —
 what you're actively doing first, what's queued next, what's done last),
-then by priority tier within each bucket (p0, p1, p2, then unprioritized),
+then by priority tier within each track (p0, p1, p2, then unprioritized),
 sorted most-recently-updated-first within each group — an item you just
 touched (even just a comment) surfaces to the top of its tier, so stale,
 untouched items sink down instead of an old item squatting at the top of
@@ -245,7 +278,7 @@ A tool that's succeeding at its job accumulates `closed` items forever, so
 by default `list` caps the closed section to the 10 most recently *updated*
 (not created) items — using the tip op-log commit's own timestamp, already
 read as part of loading the item, so no extra git calls. `--closed-limit 0`
-removes the cap; `--bucket closed` (an explicit, narrow ask) always shows the
+removes the cap; `--track closed` (an explicit, narrow ask) always shows the
 complete closed list regardless of the cap.
 
 `--json` swaps the human-readable output for machine-readable JSON (same
@@ -255,7 +288,7 @@ it.
 
 `history` flattens every item's op-log into one feed, newest-first,
 instead of `show`'s per-item view. Each entry renders its field changes as
-a short verb phrase — `Added item`, `Moved to <bucket>`, `Updated priority
+a short verb phrase — `Added item`, `Moved to <track>`, `Updated priority
 to <value>`, `Cleared priority`, `Renamed item` — rather than raw
 `field: value`, and `show <id>`'s own history section uses the same
 phrasing, so the two commands read as one consistent style rather than
@@ -267,9 +300,9 @@ header's author is whoever's commit that is (e.g. whoever ran `sync`
 locally for a merge commit), not necessarily whoever originally made each
 individual field change on the other side; a pre-existing property of
 diffing against a commit's first parent, not something `history`
-introduces. `--bucket`/`--priority` filter by an item's *current* state,
-same as `list` — not by what the value was at the time of each historical
-op.
+introduces. `--track`/`--priority`/`--label` filter by an item's *current*
+state, same as `list` — not by what the value was at the time of each
+historical op.
 
 Since `history` is the union of every item's full op-log, it only grows —
 there's no cap like `list`'s `--closed-limit`. Instead it pages the same
@@ -280,6 +313,9 @@ then `less` — the exact precedence `git-config(1)` documents for
 piped/redirected output (`| grep ...`, `> file`, `--json`) is never paged,
 matching git's own behavior of only paging interactive terminal output.
 `--no-pager` forces it off even on a terminal, mirroring `git --no-pager`.
+`list` pages through the same helper: `--closed-limit` caps the closed
+section, but the active tracks — and an uncapped or `--track closed` view —
+can still outrun a screen, so it gets the same pager and `--no-pager`.
 
 **Update**
 ```
@@ -289,6 +325,8 @@ git backlog title <id> "<new title>"
 git backlog describe <id> "<text>"
 git backlog comment <id> "<text>"
 git backlog comment show <id> [--json]
+git backlog label <id> <name>... [--remove] [--as-agent]
+git backlog label ls [--json]
 ```
 `describe` and `comment` both follow the same replace-on-edit shape as
 `title` — passing `""` clears either. `show <id>`'s own history only
@@ -310,6 +348,18 @@ without needing a real comment-thread data structure, since every edit
 was already a real git commit. Nested under `comment` rather than a
 separate top-level verb, the same way `git remote add`/`git remote show`
 share one namespace instead of being unrelated top-level commands.
+
+`label <id> <name>...` attaches one or more labels; `--remove` detaches
+them instead. Both are set operations on the item's label field and are
+idempotent — attaching a label already present (or removing one that
+isn't) changes nothing and records no op-log commit, so re-running is
+safe. `label ls` is the discovery path: it prints every label currently in
+use with the count of items carrying each, most-used first, so you can see
+what sprints/tags exist without grepping. It's nested under `label` for the
+same `git remote`-style namespacing as `comment show`, and takes `--json`
+like the other read commands. Filtering the other direction — "which items
+carry this label" — is `list --label <name>` / `history --label <name>`,
+one more filter alongside `--track`/`--priority` rather than a new verb.
 
 **Sync / Init**
 ```
@@ -498,6 +548,42 @@ unrelated projects (Gmail/Kubernetes-in-one-repo scale) sharing a single
 list. A single shared, repo-wide backlog is enough for that target. If a
 project ever outgrows that, it's a different tool's problem, not a
 feature to add here.
+
+## Milestones, epics & burndown: considered and closed
+
+Reasoned through after labels shipped, prompted by a real case (a
+"reminders mvp" milestone containing a few epics). The pull was toward
+first-class milestones (a name + a due date + a completion/burndown view)
+and possibly epics as objects that nest under them.
+
+Rejected — kept as a **labeling convention**, no new machinery. The
+distinctions that clarified it:
+
+- **Epics are already labels.** An epic is pure grouping — many items, no
+  date, no lifecycle — which is exactly what a flat label is. `epic-auth`
+  needs nothing new.
+- **Milestone-as-containment is already reachable** via faceted
+  co-labeling: put `milestone-<name>` *and* `epic-<name>` on each item, and
+  AND-filtering navigates the hierarchy (`list --label milestone-x` for the
+  whole milestone, `--label milestone-x --label epic-y` to drill in).
+  Labels are orthogonal facets; the hierarchy is emergent from
+  co-occurrence, not a stored parent link.
+- **The only things labels genuinely can't do** are (1) hang a *date* on a
+  milestone and (2) *present* a rolled-up "X/Y done, by epic" view. #2 is a
+  pure read over existing labels and could be a reporting command with zero
+  new storage; #1 is the expensive one — a synced date has to live in a git
+  object under a ref (config isn't covered by `sync`), i.e. a whole new
+  metadata storage home.
+
+The deciding lens was identity, not feasibility: git-backlog is a
+lightweight backlog shared between an agent and a user — "what to work on
+next" — not a project-management tool. Dates, burndown, story points, and
+velocity are the machinery that turns it into a Jira competitor and fights
+the minimalist thesis this whole schema is built on. A `milestone-x` label
+carries the grouping; the deadline and the burndown stay in planning, on
+purpose. If the "what's due, how much is left" decision ever becomes one
+actually acted on, the cheap first step is the read-only rollup over
+labels — never estimation machinery.
 
 ## Implementation notes
 

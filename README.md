@@ -35,16 +35,18 @@ git backlog sync
 | Command | Effect |
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
-| `add "<title>" [--bucket backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--as-agent]` | Create an item (defaults to `--bucket backlog`, unset priority) |
-| `list [--bucket <value>] [--priority <value>] [--closed-limit N] [--json]` | List every item, grouped by bucket then priority, most-recently-updated-first within each group (empty buckets shown as `(empty)`); shows sync status when a remote's configured |
+| `add "<title>" [--track backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--label <name>]... [--as-agent]` | Create an item (defaults to `--track backlog`, unset priority) |
+| `list [--track <value>] [--priority <value>] [--label <value>]... [--closed-limit N] [--no-pager] [--json]` | List every item, grouped by track then priority, most-recently-updated-first within each group (empty tracks shown as `(empty)`); shows sync status when a remote's configured |
 | `show <id> [--json]` | Full item state plus its complete op-log history (newest first), including sync status |
-| `history [--bucket <value>] [--priority <value>] [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
-| `move <id> <backlog\|current\|closed> [--as-agent]` | Move an item to a different bucket (closing an item is just `move <id> closed`) |
+| `history [--track <value>] [--priority <value>] [--label <value>]... [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
+| `move <id> <backlog\|current\|closed> [--as-agent]` | Move an item to a different track (closing an item is just `move <id> closed`) |
 | `priority <id> <p0\|p1\|p2\|none> [--as-agent]` | Set or clear priority |
 | `title <id> "<new title>" [--as-agent]` | Rename an item |
 | `describe <id> "<text>" [--as-agent]` | Set an item's description (empty string clears it) |
 | `comment <id> "<text>" [--as-agent]` | Set an item's comment (empty string clears it) |
 | `comment show <id> [--json]` | Show an item's comments, newest first |
+| `label <id> <name>... [--remove] [--as-agent]` | Attach labels to an item, or `--remove` to detach them (flat tags for grouping, e.g. a sprint) |
+| `label ls [--json]` | List every label in use with how many items carry it, most-used first |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
 | `version` | Print the git-backlog version |
 
@@ -59,8 +61,27 @@ from the object rather than printed as a placeholder string.
 A successful backlog accumulates `closed` items forever, so `list` caps the
 closed section to the 10 most recently updated items by default (a
 `... and N more` note shows how many are hidden). `--closed-limit 0`
-removes the cap; `--bucket closed` also shows the full closed list, since
+removes the cap; `--track closed` also shows the full closed list, since
 asking for it specifically is already an explicit, narrow request.
+
+### Labels
+
+Labels are flat, free-form tags for grouping items — a sprint, an area, a
+theme. Attach any number to an item and filter by them:
+
+```
+git backlog add "wire up auth" --label sprint-12 --label backend
+git backlog label <id> sprint-12          # attach to an existing item
+git backlog label <id> sprint-12 --remove # detach
+git backlog list --label sprint-12        # everything in sprint-12
+git backlog label ls                      # every label in use, with counts
+```
+
+`list --label` (and `history --label`) narrow to items carrying *all* of
+the given labels. Labels show inline in `list` and on their own line in
+`show`. For heavier grouping (milestones with due dates, key=value labels)
+git-backlog stays out of the way on purpose — a label like `sprint-12`
+already covers "bundle these and find them later."
 
 ### Sync status
 
@@ -192,8 +213,8 @@ git's own precedence, so an existing git pager setup already applies);
 paged.
 
 `history` flattens every item's op-log into one chronological feed —
-same `--bucket`/`--priority` filters as `list`, applied to items' *current*
-state (so `--bucket current` shows the full history of everything presently
+same `--track`/`--priority` filters as `list`, applied to items' *current*
+state (so `--track current` shows the full history of everything presently
 in `current`, including its `Added item` entry from back when it may have
 started in `backlog`). Each entry shows the item's current title (not its
 title at the time of that operation) so entries stay identifiable even

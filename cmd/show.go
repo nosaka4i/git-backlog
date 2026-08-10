@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/nosaka4i/git-backlog/internal/store"
 	"github.com/spf13/cobra"
@@ -64,6 +65,11 @@ func newShowCmd() *cobra.Command {
 			fmt.Printf("description: %s\n", description)
 			fmt.Printf("track:       %s\n", item.Track)
 			fmt.Printf("priority:    %s\n", priority)
+			labels := "(none)"
+			if len(item.Labels) > 0 {
+				labels = strings.Join(item.Labels, ", ")
+			}
+			fmt.Printf("labels:      %s\n", labels)
 			comment := "(none)"
 			if item.Comment != "" {
 				comment = item.Comment

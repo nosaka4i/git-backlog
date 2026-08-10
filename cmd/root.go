@@ -31,6 +31,7 @@ func init() {
 		newTitleCmd(),
 		newDescribeCmd(),
 		newCommentCmd(),
+		newLabelCmd(),
 		newSyncCmd(),
 		newVersionCmd(),
 	)

@@ -432,3 +432,71 @@ func TestMigrateTrackFieldIsNoOpOnAlreadyMigratedItem(t *testing.T) {
 		t.Fatalf("expected no new op recorded, got %d ops", len(history))
 	}
 }
+
+func TestParseLabel(t *testing.T) {
+	if got, err := ParseLabel("  sprint-xyz  "); err != nil || got != "sprint-xyz" {
+		t.Fatalf("ParseLabel trimming = %q, %v", got, err)
+	}
+	if _, err := ParseLabel("   "); err == nil {
+		t.Fatal("ParseLabel(\"   \") expected error for empty label")
+	}
+	if _, err := ParseLabel("has\nnewline"); err == nil {
+		t.Fatal("ParseLabel expected error for a newline in the label")
+	}
+}
+
+func TestAddRemoveLabels(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	item, err := CreateItem("fix flaky test", TrackBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(item.Labels) != 0 {
+		t.Fatalf("labels should be empty on create, got %v", item.Labels)
+	}
+
+	// Added out of order and with a duplicate; stored sorted and deduped.
+	item, err = AddLabels(item.ID, []string{"sprint-xyz", "backend", "sprint-xyz"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(item.Labels, ","); got != "backend,sprint-xyz" {
+		t.Fatalf("labels = %q, want sorted+deduped", got)
+	}
+
+	// Adding an already-present label is a no-op: no new commit.
+	before := item.Tip
+	item, err = AddLabels(item.ID, []string{"backend"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Tip != before {
+		t.Fatalf("re-adding an existing label should not create a commit: tip %s -> %s", before, item.Tip)
+	}
+
+	// Remove one label; the other remains.
+	item, err = RemoveLabels(item.ID, []string{"backend"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(item.Labels, ","); got != "sprint-xyz" {
+		t.Fatalf("labels after remove = %q", got)
+	}
+
+	// Remove the last label; the field is gone entirely and the item still
+	// loads cleanly (no "corrupt?" from a missing labels blob).
+	item, err = RemoveLabels(item.ID, []string{"sprint-xyz"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(item.Labels) != 0 {
+		t.Fatalf("labels should be empty after removing all, got %v", item.Labels)
+	}
+	reloaded, err := LoadItem(item.ID)
+	if err != nil {
+		t.Fatalf("item should still load after all labels removed: %v", err)
+	}
+	if len(reloaded.Labels) != 0 {
+		t.Fatalf("reloaded labels = %v", reloaded.Labels)
+	}
+}

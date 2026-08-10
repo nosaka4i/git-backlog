@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/nosaka4i/git-backlog/internal/store"
 	"github.com/spf13/cobra"
@@ -10,7 +11,8 @@ import (
 
 func newListCmd() *cobra.Command {
 	var trackFlag, priorityFlag string
-	var jsonFlag bool
+	var labelFlag []string
+	var jsonFlag, noPagerFlag bool
 	var closedLimit int
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -40,6 +42,9 @@ func newListCmd() *cobra.Command {
 					return err
 				}
 				items = filterPriority(items, p)
+			}
+			if len(labelFlag) > 0 {
+				items = filterLabels(items, labelFlag)
 			}
 
 			byTrack := make(map[store.Track][]*store.Item)
@@ -99,28 +104,31 @@ func newListCmd() *cobra.Command {
 				return printJSON(out)
 			}
 
+			w, done := pagerWriter(noPagerFlag)
+			defer done()
+
 			if remoteErr == nil {
-				fmt.Println(syncSummaryLine(syncRemote, syncStates))
-				fmt.Println()
+				fmt.Fprintln(w, syncSummaryLine(syncRemote, syncStates))
+				fmt.Fprintln(w)
 			}
 
 			for _, b := range displayTracks {
-				fmt.Printf("%s (%d):\n", b, totalByTrack[b])
+				fmt.Fprintf(w, "%s (%d):\n", b, totalByTrack[b])
 				group := byTrack[b]
 				if len(group) == 0 {
-					fmt.Println("  (empty)")
+					fmt.Fprintln(w, "  (empty)")
 					continue
 				}
 				lastPriority := -1
 				for _, it := range group {
 					if it.Priority.Rank() != lastPriority {
 						lastPriority = it.Priority.Rank()
-						fmt.Println("  " + groupLabel(it.Priority))
+						fmt.Fprintln(w, "  "+groupLabel(it.Priority))
 					}
-					fmt.Printf("    %s  %s%s\n", store.ShortID(it.ID), truncate(it.Title, 60), syncMarker(syncStates[it.ID]))
+					fmt.Fprintf(w, "    %s  %s%s%s\n", store.ShortID(it.ID), truncate(it.Title, 60), labelSuffix(it.Labels), syncMarker(syncStates[it.ID]))
 				}
 				if b == store.TrackClosed && omitted > 0 {
-					fmt.Printf("  ... and %d more (use --closed-limit 0 to show all, or --track closed)\n", omitted)
+					fmt.Fprintf(w, "  ... and %d more (use --closed-limit 0 to show all, or --track closed)\n", omitted)
 				}
 			}
 			return nil
@@ -128,10 +136,44 @@ func newListCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&trackFlag, "track", "", "filter by backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "filter by p0|p1|p2|none")
+	cmd.Flags().StringArrayVar(&labelFlag, "label", nil, "filter to items carrying all of these labels (repeatable)")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&noPagerFlag, "no-pager", false, "don't pipe output through a pager, even on a terminal")
 	cmd.Flags().IntVar(&closedLimit, "closed-limit", 10,
 		"cap closed items to the N most recently updated (0 = unlimited); ignored when --track is set")
 	return cmd
+}
+
+// filterLabels keeps only items carrying every one of the wanted labels
+// (AND semantics, matching how `gh issue list --label` narrows).
+func filterLabels(items []*store.Item, want []string) []*store.Item {
+	out := make([]*store.Item, 0, len(items))
+	for _, it := range items {
+		has := make(map[string]struct{}, len(it.Labels))
+		for _, l := range it.Labels {
+			has[l] = struct{}{}
+		}
+		ok := true
+		for _, w := range want {
+			if _, found := has[strings.TrimSpace(w)]; !found {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// labelSuffix renders an item's labels as a compact inline tag list for the
+// list view, or "" when it has none.
+func labelSuffix(labels []string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+	return "  [" + strings.Join(labels, ", ") + "]"
 }
 
 func groupLabel(p store.Priority) string {

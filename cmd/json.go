@@ -23,6 +23,7 @@ type jsonItem struct {
 	Track       string         `json:"track"`
 	Priority    string         `json:"priority,omitempty"`
 	Comment     string         `json:"comment,omitempty"`
+	Labels      []string       `json:"labels,omitempty"`
 	Owner       jsonOwner      `json:"owner"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
@@ -37,6 +38,7 @@ func toJSONItem(it *store.Item) jsonItem {
 		Track:       string(it.Track),
 		Priority:    string(it.Priority),
 		Comment:     it.Comment,
+		Labels:      it.Labels,
 		Owner:       jsonOwner{Name: it.OwnerName, Email: it.OwnerEmail},
 		CreatedAt:   it.CreatedAt,
 		UpdatedAt:   it.UpdatedAt,
@@ -58,6 +60,13 @@ func toJSONSyncState(s *store.ItemSyncState) *jsonSyncState {
 		return nil
 	}
 	return &jsonSyncState{Status: string(s.Status), AheadBy: s.AheadBy, BehindBy: s.BehindBy}
+}
+
+// jsonLabelCount is one label and how many items carry it, as printed by
+// `label ls --json`.
+type jsonLabelCount struct {
+	Label string `json:"label"`
+	Count int    `json:"count"`
 }
 
 // jsonChange is one field touched by an op-log entry.

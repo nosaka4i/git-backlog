@@ -34,6 +34,11 @@ func actionLine(field string, removed bool, value string) string {
 			return "Cleared description"
 		}
 		return "Updated description"
+	case "labels":
+		if removed {
+			return "Cleared labels"
+		}
+		return "Set labels to " + strings.ReplaceAll(value, "\n", ", ")
 	default:
 		return field + ": " + value
 	}

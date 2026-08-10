@@ -10,6 +10,7 @@ import (
 
 func newAddCmd() *cobra.Command {
 	var trackFlag, priorityFlag, descriptionFlag string
+	var labelFlag []string
 	var asAgent bool
 	cmd := &cobra.Command{
 		Use:   "add <title>",
@@ -54,6 +55,20 @@ func newAddCmd() *cobra.Command {
 					return err
 				}
 			}
+			if len(labelFlag) > 0 {
+				labels := make([]string, 0, len(labelFlag))
+				for _, a := range labelFlag {
+					l, err := store.ParseLabel(a)
+					if err != nil {
+						return err
+					}
+					labels = append(labels, l)
+				}
+				item, err = store.AddLabels(item.ID, labels, identity)
+				if err != nil {
+					return err
+				}
+			}
 			fmt.Printf("Added item successfully: %s\n", store.ShortID(item.ID))
 			return nil
 		},
@@ -61,6 +76,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&trackFlag, "track", string(store.TrackBacklog), "backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "p0|p1|p2")
 	cmd.Flags().StringVar(&descriptionFlag, "description", "", "set the item's description at creation (equivalent to add then describe)")
+	cmd.Flags().StringArrayVar(&labelFlag, "label", nil, "attach a label at creation (repeatable)")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false,
 		"create this item owned by the agent identity from backlog.agent.name/backlog.agent.email, instead of the ambient git identity — owner is permanent, see docs/design/git-backlog.md")
 	return cmd

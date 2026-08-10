@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/nosaka4i/git-backlog/internal/gitx"
 )
@@ -205,6 +206,72 @@ func SetComment(idPrefix string, comment string, identity *Identity) (*Item, err
 	return applyOp(idPrefix, map[string]*string{fieldComment: &comment}, "comment: "+comment, identity)
 }
 
+// SetLabels replaces an item's entire label set. An empty set removes the
+// labels field altogether. This is the primitive; prefer AddLabels /
+// RemoveLabels for incremental changes.
+func SetLabels(idPrefix string, labels []string, identity *Identity) (*Item, error) {
+	encoded := encodeLabels(labels)
+	var val *string
+	msg := "labels: (cleared)"
+	if encoded != "" {
+		val = &encoded
+		msg = "labels: " + strings.ReplaceAll(encoded, "\n", ", ")
+	}
+	return applyOp(idPrefix, map[string]*string{fieldLabels: val}, msg, identity)
+}
+
+// AddLabels adds one or more labels, leaving existing ones in place. It's
+// idempotent: labels already present are ignored, and if none are new the
+// item is returned unchanged with no new op-log commit.
+func AddLabels(idPrefix string, labels []string, identity *Identity) (*Item, error) {
+	item, err := LoadItem(idPrefix)
+	if err != nil {
+		return nil, err
+	}
+	merged := normalizeLabels(append(append([]string{}, item.Labels...), labels...))
+	if labelsEqual(merged, item.Labels) {
+		return item, nil
+	}
+	return SetLabels(item.ID, merged, identity)
+}
+
+// RemoveLabels drops the given labels from an item. Labels not present are
+// ignored; if nothing changes the item is returned unchanged with no commit.
+func RemoveLabels(idPrefix string, labels []string, identity *Identity) (*Item, error) {
+	item, err := LoadItem(idPrefix)
+	if err != nil {
+		return nil, err
+	}
+	drop := make(map[string]struct{}, len(labels))
+	for _, l := range labels {
+		drop[strings.TrimSpace(l)] = struct{}{}
+	}
+	kept := make([]string, 0, len(item.Labels))
+	for _, l := range item.Labels {
+		if _, rm := drop[l]; rm {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	if labelsEqual(kept, item.Labels) {
+		return item, nil
+	}
+	return SetLabels(item.ID, kept, identity)
+}
+
+// labelsEqual compares two already-normalized (sorted, unique) label slices.
+func labelsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // applyOp writes a new op-log commit on top of idPrefix's current tip,
 // changing the given fields (nil value removes the field) and returns the
 // item's new state. identity is nil to author the commit from the ambient
@@ -327,6 +394,10 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
+	labelsRaw, err := fieldValue(entries, fieldLabels)
+	if err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
+	}
 	clockRaw, err := fieldValue(entries, fieldClock)
 	if err != nil {
 		return nil, fmt.Errorf("item %s: %w", id, err)
@@ -340,6 +411,7 @@ func itemFromEntries(id, ref, tip string, entries []gitx.TreeEntry, tipCommit, c
 		Priority:    Priority(priorityRaw),
 		Description: description,
 		Comment:     comment,
+		Labels:      parseLabels(labelsRaw),
 		OwnerName:   createCommit.AuthorName,
 		OwnerEmail:  createCommit.AuthorEmail,
 		CreatedAt:   parseGitDate(createCommit.AuthorDate),

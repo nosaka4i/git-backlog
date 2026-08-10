@@ -6,6 +6,7 @@ package store
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,58 @@ func ParseTrack(s string) (Track, error) {
 	default:
 		return "", fmt.Errorf("invalid track %q (want backlog, current, or closed)", s)
 	}
+}
+
+// ParseLabel validates and normalizes a single user-supplied label. Labels
+// are flat, free-form tags used to group items (e.g. "sprint-xyz" for
+// everything in one sprint); the only rules are that a label is non-empty
+// after trimming and carries no newline, since an item's labels are stored
+// newline-delimited in a single tree blob.
+func ParseLabel(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", fmt.Errorf("label must not be empty")
+	}
+	if strings.ContainsAny(s, "\n\r") {
+		return "", fmt.Errorf("label %q must not contain a newline", s)
+	}
+	return s, nil
+}
+
+// normalizeLabels de-duplicates, drops blanks, and sorts a label slice.
+// Sorting keeps the stored blob canonical: the same set added in different
+// orders yields the same blob, so it produces no spurious history diffs.
+func normalizeLabels(labels []string) []string {
+	seen := make(map[string]struct{}, len(labels))
+	uniq := make([]string, 0, len(labels))
+	for _, l := range labels {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
+		}
+		if _, dup := seen[l]; dup {
+			continue
+		}
+		seen[l] = struct{}{}
+		uniq = append(uniq, l)
+	}
+	sort.Strings(uniq)
+	return uniq
+}
+
+// encodeLabels renders a label set for storage: one canonical label per
+// line. Returns "" for an empty set, which callers treat as "remove the
+// labels field entirely" so unlabeled items carry no labels blob.
+func encodeLabels(labels []string) string {
+	return strings.Join(normalizeLabels(labels), "\n")
+}
+
+// parseLabels decodes a stored labels blob into a canonical slice.
+func parseLabels(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return normalizeLabels(strings.Split(raw, "\n"))
 }
 
 // Priority is an item's priority tier, or "" if unset.
@@ -105,6 +158,7 @@ const (
 	fieldPriority    = "priority"
 	fieldComment     = "comment"
 	fieldDescription = "description"
+	fieldLabels      = "labels"
 	fieldClock       = "clock"
 )
 
@@ -139,6 +193,7 @@ type Item struct {
 	Priority    Priority
 	Description string // freeform, optional, permanent (single current value, replace-on-edit like Title); "" means never set
 	Comment     string // freeform, optional; "" means never set
+	Labels      []string // flat, free-form grouping tags; sorted, de-duplicated; nil/empty means none
 	OwnerName   string
 	OwnerEmail  string
 	CreatedAt   time.Time
