@@ -227,6 +227,14 @@ command, same shape: `<verb> <id> <value>`. No `done`/`start`/`reopen`
 special-cased verbs — closing an item is just
 `git backlog move <id> closed`.
 
+Bare `git backlog` (no subcommand) prints help, not a default action —
+matching `git`/`docker`/`kubectl`/`gh`, where the top-level surface is
+where you discover the command set. It is *not* an alias for `list`:
+considered and rejected, since bare-invocation help matters more for a
+~dozen-subcommand tool than saving the word `list`. (This differs from bare
+`git backlog label`, which *does* list — a leaf noun whose one obvious
+default is "list them," the `git tag`/`git branch` pattern.)
+
 **Create**
 ```
 git backlog add "<title>" [--track backlog|current|closed] [--priority p0|p1|p2] [--description "<text>"] [--label <name>]... [--as-agent]
@@ -326,7 +334,7 @@ git backlog describe <id> "<text>"
 git backlog comment <id> "<text>"
 git backlog comment show <id> [--json]
 git backlog label <id> <name>... [--remove] [--as-agent]
-git backlog label ls [--json]
+git backlog label [--json]
 ```
 `describe` and `comment` both follow the same replace-on-edit shape as
 `title` — passing `""` clears either. `show <id>`'s own history only
@@ -353,13 +361,17 @@ share one namespace instead of being unrelated top-level commands.
 them instead. Both are set operations on the item's label field and are
 idempotent — attaching a label already present (or removing one that
 isn't) changes nothing and records no op-log commit, so re-running is
-safe. `label ls` is the discovery path: it prints every label currently in
-use with the count of items carrying each, most-used first, so you can see
-what sprints/tags exist without grepping. It's nested under `label` for the
-same `git remote`-style namespacing as `comment show`, and takes `--json`
-like the other read commands. Filtering the other direction — "which items
-carry this label" — is `list --label <name>` / `history --label <name>`,
-one more filter alongside `--track`/`--priority` rather than a new verb.
+safe. Bare `label` (no arguments) is the discovery path: it prints every
+label currently in use with the count of items carrying each, most-used
+first, so you can see what sprints/tags exist without grepping. The bare
+noun listing follows `git tag`/`git branch` (the noun alone enumerates, the
+noun plus args mutates) rather than a `list`/`ls` subcommand — `list` is
+already the top-level item-enumerate command, so `label list` would collide,
+and `ls` would be the only abbreviated verb in an otherwise full-word
+command set (`add`/`move`/`show`, never `mv`). `--json` applies to that
+listing, like the other read commands. Filtering the other direction —
+"which items carry this label" — is `list --label <name>` / `history
+--label <name>`, one more filter alongside `--track`/`--priority`.
 
 **Sync / Init**
 ```

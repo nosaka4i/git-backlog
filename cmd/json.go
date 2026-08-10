@@ -63,7 +63,7 @@ func toJSONSyncState(s *store.ItemSyncState) *jsonSyncState {
 }
 
 // jsonLabelCount is one label and how many items carry it, as printed by
-// `label ls --json`.
+// `label --json` (the bare-`label` roster).
 type jsonLabelCount struct {
 	Label string `json:"label"`
 	Count int    `json:"count"`

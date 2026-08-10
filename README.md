@@ -46,7 +46,7 @@ git backlog sync
 | `comment <id> "<text>" [--as-agent]` | Set an item's comment (empty string clears it) |
 | `comment show <id> [--json]` | Show an item's comments, newest first |
 | `label <id> <name>... [--remove] [--as-agent]` | Attach labels to an item, or `--remove` to detach them (flat tags for grouping, e.g. a sprint) |
-| `label ls [--json]` | List every label in use with how many items carry it, most-used first |
+| `label [--json]` | With no args, list every label in use with how many items carry it, most-used first (like `git tag`) |
 | `sync [--remote <name>]` | Push/fetch `refs/backlog/*` against a remote, reconciling any items edited concurrently on both sides |
 | `version` | Print the git-backlog version |
 
@@ -74,7 +74,7 @@ git backlog add "wire up auth" --label sprint-12 --label backend
 git backlog label <id> sprint-12          # attach to an existing item
 git backlog label <id> sprint-12 --remove # detach
 git backlog list --label sprint-12        # everything in sprint-12
-git backlog label ls                      # every label in use, with counts
+git backlog label                         # every label in use, with counts
 ```
 
 `list --label` (and `history --label`) narrow to items carrying *all* of

@@ -67,7 +67,7 @@ func TestListLabelFilter(t *testing.T) {
 	}
 }
 
-func TestLabelLsRoster(t *testing.T) {
+func TestLabelRoster(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	a, err := store.CreateItem("one", store.TrackBacklog, store.PriorityNone, nil)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestLabelLsRoster(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runCmd(t, newLabelCmd(), "ls", "--json")
+	out, err := runCmd(t, newLabelCmd(), "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
