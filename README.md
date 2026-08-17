@@ -64,6 +64,144 @@ closed section to the 10 most recently updated items by default (a
 removes the cap; `--track closed` also shows the full closed list, since
 asking for it specifically is already an explicit, narrow request.
 
+### Command reference
+
+Full flag-by-flag detail for every command; the table above is the quick
+index.
+
+**`init`**
+```
+git backlog init
+```
+Starts tracking backlog items in the current repo (sets `backlog.init` in
+local git config, i.e. `.git/config`, never committed). Safe to re-run —
+no-ops with "backlog already initialized". No flags.
+
+**`add`**
+```
+git backlog add "<title>" [--track backlog|current|closed] [--priority p0|p1|p2]
+                           [--description "<text>"] [--label <name>]... [--as-agent]
+```
+Creates a new item and prints its short id.
+- `--track` — starting track (default `backlog`)
+- `--priority` — `p0`/`p1`/`p2` (default: unset)
+- `--description "<text>"` — set the description at creation time; equivalent to `add` then `describe`
+- `--label <name>` — attach a label at creation; repeatable
+- `--as-agent` — see [Agent identity](#agent-identity); for `add` specifically, the agent becomes the item's permanent owner
+
+**`list`**
+```
+git backlog list [--track <value>] [--priority <value>] [--label <value>]...
+                  [--closed-limit N] [--no-pager] [--json]
+```
+Lists every item, grouped by track then priority, most-recently-updated
+first within each group; shows sync status when a remote's configured.
+- `--track backlog|current|closed` — narrow to one track
+- `--priority p0|p1|p2|none` — narrow to one priority
+- `--label <name>` — narrow to items carrying all of these labels; repeatable
+- `--closed-limit N` — cap the closed section to N most recent (default 10, 0 = unlimited); ignored when `--track closed` is set
+- `--no-pager` — never pipe through a pager, even on a terminal
+- `--json` — machine-readable output instead
+
+**`show`**
+```
+git backlog show <id> [--json]
+```
+Prints an item's full state (id, title, description, track, priority,
+labels, comment, owner, timestamps, sync status) plus its complete op-log
+history, newest first.
+- `--json` — machine-readable output, including the full history array
+
+**`history`**
+```
+git backlog history [--track <value>] [--priority <value>] [--label <value>]...
+                     [--no-pager] [--json]
+```
+Chronological activity trail across every item, newest first. Filters
+match items' *current* state, same semantics as `list`'s filters.
+- `--track`, `--priority`, `--label` — same as `list`
+- `--no-pager`, `--json` — same as `list`
+
+**`move`**
+```
+git backlog move <id> <backlog|current|closed> [--as-agent]
+```
+Moves an item to a different track (closing an item is just
+`move <id> closed`).
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`priority`**
+```
+git backlog priority <id> <p0|p1|p2|none> [--as-agent]
+```
+Sets an item's priority, or clears it with `none`.
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`title`**
+```
+git backlog title <id> "<new title>" [--as-agent]
+```
+Renames an item.
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`describe`**
+```
+git backlog describe <id> "<text>" [--as-agent]
+```
+Sets an item's description; an empty string clears it. See the
+description-vs-comment note below for how this differs from `comment`.
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`comment`**
+```
+git backlog comment <id> "<text>" [--as-agent]
+```
+Sets an item's comment; an empty string clears it. Each edit replaces the
+value — use `comment show` to read past comment text.
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`comment show`**
+```
+git backlog comment show <id> [--json]
+```
+Shows an item's comments, newest first (each with timestamp, commit,
+author, and text; cleared entries print `(cleared)`).
+- `--json` — machine-readable output
+
+**`label`**
+```
+git backlog label <id> <name>... [--remove] [--as-agent]
+```
+Attaches one or more labels to an item; `--remove` detaches them instead.
+Adding an already-present label (or removing an absent one) is a no-op —
+no empty commit.
+- `--remove` — detach the given labels instead of attaching them
+- `--as-agent` — see [Agent identity](#agent-identity)
+
+**`label` (no args)**
+```
+git backlog label [--json]
+```
+Lists every label currently in use, with how many items carry it,
+most-used first (ties alphabetical) — the `git tag`-style bare-noun
+roster.
+- `--json` — machine-readable output (`{"label": ..., "count": ...}` per entry)
+
+**`sync`**
+```
+git backlog sync [--remote <name>]
+```
+Pushes/fetches `refs/backlog/*` against a remote, reconciling any items
+edited concurrently on both sides. Reports items adopted from the remote,
+fast-forwarded, and merged.
+- `--remote <name>` — remote to sync with (default: `origin`, or the only configured remote)
+
+**`version`**
+```
+git backlog version
+```
+Prints the git-backlog version. No flags.
+
 ### Labels
 
 Labels are flat, free-form tags for grouping items — a sprint, an area, a
