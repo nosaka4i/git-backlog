@@ -1,6 +1,6 @@
 # git-backlog
 
-A lightweight and opinionated backlog CLI tool that leverages git's distributed source management mechanics.  Ideal for small teams of
+A lightweight, opinionated backlog CLI tool that leverages git's distributed source management mechanics.  Ideal for small teams of
 developers, product managers, or even AI coding agents.  State is stored as real git objects under `refs/backlog/*` and synced via
 plain `git push`/`fetch`.  Keep track of items, set priority, shift them across your backlog, current, or closed lists.
 
@@ -218,26 +218,26 @@ line count stays predictable no matter how many items exist or how
 they're spread across priorities:
 
 ```
-sync: 2 ahead, 1 behind, 3 not yet synced
-last 24h: 2 new, 1 closed
+sync: 1 ahead, 2 behind, 4 not yet synced
+last 24h: 3 new, 1 closed
 
 current (1 total):
 
-  p0 2c6334e  confidence scoring for deterministic  ↑1
+  p0 9f3ac21  tighten CORS policy before launch  ↑1
 
-backlog (42 total, 0 p0, 3 p1, 1 p2, 38 none):
+backlog (17 total, 0 p0, 4 p1, 2 p2, 11 none):
 
-  p1 a7fb723  Transcript/Actions view can show stale content after a…  (not synced)
-  p1 b936bd7  things in a series are broken if multiple confirmations …
-  p1 dd64ca3  compound statements latter half are being ignored.
-  ... and 39 more (use --track backlog to see them all)
+  p1 4e1cb08  rate limit the public API  (not synced)
+  p1 7d9a441  flaky checkout test under -race
+  p1 c2f9910  paginate the /orders endpoint
+  ... and 14 more (use --track backlog to see them all)
 
-closed (18 total, 5 p0, 2 p1, 1 p2, 10 none):
+closed (9 total, 2 p0, 3 p1, 1 p2, 3 none):
 
-  p0 0038514  whisper prompt bias  [reminder-mvp]
-  p0 4b13782  add reminder due date
-  p0 d3cc34e  add reminder notes
-  ... and 15 more (use --track closed to see them all)
+  p0 6b0e824  fix auth token refresh race condition
+  p0 1af7c50  memory leak in background worker
+  p1 e33f902  upgrade postgres driver to v15
+  ... and 6 more (use --track closed to see them all)
 ```
 
 - `sync:` and `last 24h:` are always global — the whole repo's state, not
@@ -263,16 +263,18 @@ under priority sub-headers, uncapped, paged (this is `list`'s original
 behavior, unchanged):
 
 ```
-backlog (42):
+backlog (17):
   p1:
-    a7fb723  Transcript/Actions view can show stale content after a long …  (not synced)
-    b936bd7  things in a series are broken if multiple confirmations requ…
-    dd64ca3  compound statements latter half are being ignored.
+    4e1cb08  rate limit the public API  (not synced)
+    7d9a441  flaky checkout test under -race
+    c2f9910  paginate the /orders endpoint
+    b81a337  db migration script fails on empty table
   p2:
-    7892993  FILTER_EXTRACTION_GUIDANCE thematic-keyword guardrail unreli…
+    5a02ffe  dark mode toggle persists across reload
+    e6c1128  export CSV button has wrong padding
   unprioritized:
-    7105878  yes/no audio flush is slow  (not synced)
-    ... (37 more unprioritized items, one line each)
+    118bcaa  clean up unused feature flags
+    ... (10 more unprioritized items, one line each)
 ```
 
 `--json` follows the same rule: the filtered-and-capped set for bare
