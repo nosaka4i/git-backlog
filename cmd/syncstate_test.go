@@ -81,7 +81,7 @@ func TestAllShowsUpToDateSummaryAfterSync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(out, "up to date with origin\n\n") {
+	if !strings.HasPrefix(out, "sync: up to date with origin\n") {
 		t.Fatalf("output = %q, want it to start with the up-to-date summary", out)
 	}
 }

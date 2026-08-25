@@ -263,36 +263,80 @@ line does both.
 
 **Read**
 ```
-git backlog list [--track <value>] [--priority <value>] [--label <value>]... [--closed-limit N] [--no-pager] [--json]
+git backlog list [--track <value>] [--priority <value>[,<value>...]] [--label <value>]... [--no-pager] [--json]
 git backlog show <id> [--json]
-git backlog history [--track <value>] [--priority <value>] [--label <value>]... [--json] [--no-pager]
+git backlog history [--track <value>] [--priority <value>[,<value>...]] [--label <value>]... [--json] [--no-pager]
 ```
-`list` prints everything, grouped by track (current, backlog, then closed —
-what you're actively doing first, what's queued next, what's done last),
-then by priority tier within each track (p0, p1, p2, then unprioritized),
-sorted most-recently-updated-first within each group — an item you just
-touched (even just a comment) surfaces to the top of its tier, so stale,
-untouched items sink down instead of an old item squatting at the top of
-its tier forever by virtue of having been created first. Long titles
-truncate for display (~60 chars + "…"); `show` always prints the full
-title untruncated, plus the item's full op-log history, newest first
-(same convention as `history` and `comment show`, even though
-`store.History` itself returns oldest-first — `show`'s RunE reverses it
-for display). Both also report
-each item's status against the last-known remote — see "Sync state"
-under Sync & conflict resolution above.
+`list` has two shapes, chosen by whether `--track` was given.
 
-A tool that's succeeding at its job accumulates `closed` items forever, so
-by default `list` caps the closed section to the 10 most recently *updated*
-(not created) items — using the tip op-log commit's own timestamp, already
-read as part of loading the item, so no extra git calls. `--closed-limit 0`
-removes the cap; `--track closed` (an explicit, narrow ask) always shows the
-complete closed list regardless of the cap.
+Bare `list` (no `--track`) is a **dashboard**, not a dump — its job is a
+quick "what's the state of things" glance, not retrieval. A backlog that's
+succeeding at its job accumulates items forever, and paging alone stopped
+being enough once a real backlog (40+ items) meant scrolling through
+several screens just to see what's current. So each track (current,
+backlog, then closed — what you're actively doing first, what's queued
+next, what's done last) prints a `(<N> total[, <priority breakdown>])`
+header, then a fixed **3** items — highest priority first, ties broken by
+most-recently-updated — with priority inlined per line (`p1 <id>
+<title>`) instead of grouped under sub-headers, and an `... and N more
+(use --track <track> to see them all)` note when there's more. Inlining
+priority instead of grouping under sub-headers matters here: a
+sub-header's line count depends on how many distinct priority tiers the
+visible items happen to span, which made a track's total height
+unpredictable (anywhere from ~7 to ~11 lines for the same 3 items,
+depending on spread) — flattening it fixes the line count regardless of
+spread, which is what makes "the whole dashboard fits in a small
+terminal" a guarantee rather than a coincidence. The priority breakdown
+lists all four tiers including zero counts (`npm audit`'s convention —
+count then label, comma-separated — rather than a proportional bar
+`git diff --stat` uses; a bar reads fine for "big vs. small" but can't
+distinguish e.g. 1 from 3 without an accompanying number, and once the
+number's there the bar's redundant) and is left off entirely once a
+track's total is already ≤ 3, since there's nothing left to summarize
+beyond what's already on screen.
 
-`--json` swaps the human-readable output for machine-readable JSON (same
-filtering, same sort order, same closed cap) — a flag on the existing read
-commands, not a separate verb, matching how `kubectl`/`gh`/`docker` expose
-it.
+Naming a track explicitly — `--track backlog` — is a deliberate, narrow
+request, so it bypasses the dashboard and gets the real thing: every item
+in that track, grouped by priority tier (p0, p1, p2, then unprioritized)
+under sub-headers, sorted most-recently-updated-first within each group —
+an item you just touched (even just a comment) surfaces to the top of its
+tier, so stale, untouched items sink down instead of an old item
+squatting at the top of its tier forever by virtue of having been created
+first — uncapped, paged. This is `list`'s original, pre-dashboard
+behavior, unchanged; only the no-`--track` case changed shape. Long
+titles truncate for display (~60 chars + "…") in both shapes; `show`
+always prints the full title untruncated, plus the item's full op-log
+history, newest first (same convention as `history` and `comment show`,
+even though `store.History` itself returns oldest-first — `show`'s RunE
+reverses it for display). Both `list` shapes also report each item's
+status against the last-known remote — see "Sync state" under Sync &
+conflict resolution above — and both print a `sync:`-labeled summary line
+plus a `last 24h:` activity line above the track sections, always global
+(the whole repo's state, independent of any `--track`/`--priority`/
+`--label` filter on this particular call) — see below.
+
+`--json` swaps the human-readable output for machine-readable JSON: the
+filtered-and-capped set for bare `list` (same shape the dashboard shows,
+just as objects), the filtered-and-uncapped set for `--track <value>` —
+a flag on the existing read commands, not a separate verb, matching how
+`kubectl`/`gh`/`docker` expose it.
+
+**`last 24h`**: a rolling 24-hour window (not a calendar day, which is
+meaningless once contributors span time zones), counting exactly two
+event types across every item's op-log, regardless of any filter the
+`list` call applied: items created, and items moved to `closed`. Every
+op-log entry already carries a timestamp, and create ops are already
+distinguishable from field edits (`isCreateOp`, keyed off the `add:`
+commit-message prefix `opActionLines` already uses to collapse a create
+op to one "Added item" line) — so this reuses the same op-log walk
+`history` does, just filtered by time and change type instead of
+rendered as a feed. Renames, priority/label/comment edits, and moves
+between `backlog`/`current` are deliberately not counted: unlike
+"created" or "closed", they have no unambiguous meaning in aggregate (10
+priority changes could mean anything happened — items got triaged up,
+down, or cleared). Prints `last 24h: none` when both counts are zero,
+rather than omitting the line — a stable two-line header (`sync:`,
+`last 24h:`) is easier to scan than one that appears and disappears.
 
 `history` flattens every item's op-log into one feed, newest-first,
 instead of `show`'s per-item view. Each entry renders its field changes as
@@ -313,17 +357,17 @@ state, same as `list` — not by what the value was at the time of each
 historical op.
 
 Since `history` is the union of every item's full op-log, it only grows —
-there's no cap like `list`'s `--closed-limit`. Instead it pages the same
-way `git log`/`git diff`/`git show` do: when stdout is a terminal, output
-is piped through a pager (`$GIT_PAGER`, then `core.pager`, then `$PAGER`,
-then `less` — the exact precedence `git-config(1)` documents for
-`core.pager`, so an existing git pager setup just works here too);
-piped/redirected output (`| grep ...`, `> file`, `--json`) is never paged,
-matching git's own behavior of only paging interactive terminal output.
-`--no-pager` forces it off even on a terminal, mirroring `git --no-pager`.
-`list` pages through the same helper: `--closed-limit` caps the closed
-section, but the active tracks — and an uncapped or `--track closed` view —
-can still outrun a screen, so it gets the same pager and `--no-pager`.
+there's no cap on it. Instead it pages the same way `git log`/`git diff`/
+`git show` do: when stdout is a terminal, output is piped through a pager
+(`$GIT_PAGER`, then `core.pager`, then `$PAGER`, then `less` — the exact
+precedence `git-config(1)` documents for `core.pager`, so an existing git
+pager setup just works here too); piped/redirected output (`| grep ...`,
+`> file`, `--json`) is never paged, matching git's own behavior of only
+paging interactive terminal output. `--no-pager` forces it off even on a
+terminal, mirroring `git --no-pager`. `list` pages through the same
+helper: the dashboard's 3-per-track cap keeps it well under a screen on
+its own, but an explicit `--track <value>` view is uncapped and can
+easily outrun one, so it gets the same pager and `--no-pager`.
 
 **Update**
 ```

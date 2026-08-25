@@ -36,7 +36,7 @@ func TestListGroupsByTrackThenPriority(t *testing.T) {
 	if !(currentIdx < backlogIdx && backlogIdx < closedIdx) {
 		t.Fatalf("list headers out of order (want current, backlog, closed):\n%s", out)
 	}
-	if !strings.Contains(out, "current (1):") || !strings.Contains(out, "backlog (2):") || !strings.Contains(out, "closed (0):") {
+	if !strings.Contains(out, "current (1 total):") || !strings.Contains(out, "backlog (2 total):") || !strings.Contains(out, "closed (0 total):") {
 		t.Fatalf("list headers missing expected counts:\n%s", out)
 	}
 	if !strings.Contains(out, "backlog p1 item") || !strings.Contains(out, "current p0 item") {
@@ -46,6 +46,42 @@ func TestListGroupsByTrackThenPriority(t *testing.T) {
 	closedSection := out[closedIdx:]
 	if !strings.Contains(closedSection, "(empty)") {
 		t.Fatalf("expected closed section to say (empty):\n%s", closedSection)
+	}
+}
+
+func TestListLast24hCountsNewAndClosed(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	kept, err := store.CreateItem("stays open", store.TrackBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toClose, err := store.CreateItem("gets closed", store.TrackBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetTrack(toClose.ID, store.TrackClosed, nil); err != nil {
+		t.Fatal(err)
+	}
+	_ = kept
+
+	out, err := runCmd(t, newListCmd())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "last 24h: 2 new, 1 closed") {
+		t.Fatalf("expected a last-24h line counting both creates and the one close:\n%s", out)
+	}
+}
+
+func TestListLast24hNoneWhenNothingHappened(t *testing.T) {
+	chdirTempRepo(t, "alice")
+
+	out, err := runCmd(t, newListCmd())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "last 24h: none") {
+		t.Fatalf("expected 'last 24h: none' on an empty backlog:\n%s", out)
 	}
 }
 
@@ -119,6 +155,30 @@ func TestListPriorityFilter(t *testing.T) {
 	}
 }
 
+func TestListPriorityFilterCommaSeparatedIsOR(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	if _, err := store.CreateItem("p0 item", store.TrackBacklog, store.PriorityP0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateItem("p1 item", store.TrackBacklog, store.PriorityP1, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateItem("p2 item", store.TrackBacklog, store.PriorityP2, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCmd(t, newListCmd(), "--priority", "p0,p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "p0 item") || !strings.Contains(out, "p1 item") {
+		t.Fatalf("expected both p0 and p1 items with an OR filter:\n%s", out)
+	}
+	if strings.Contains(out, "p2 item") {
+		t.Fatalf("did not expect p2 item with --priority p0,p1:\n%s", out)
+	}
+}
+
 func TestListInvalidFiltersError(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	if _, err := runCmd(t, newListCmd(), "--track", "bogus"); err == nil {
@@ -140,7 +200,7 @@ func createClosedItems(t *testing.T, n int) {
 	}
 }
 
-func TestListCapsClosedByDefault(t *testing.T) {
+func TestListCapsEveryTrackByDefault(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	createClosedItems(t, 15)
 
@@ -148,30 +208,32 @@ func TestListCapsClosedByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(out, "closed item ") != 10 {
-		t.Fatalf("expected 10 closed items shown by default, got %d:\n%s", strings.Count(out, "closed item "), out)
+	if strings.Count(out, "closed item ") != dashboardCap {
+		t.Fatalf("expected %d closed items shown by default, got %d:\n%s", dashboardCap, strings.Count(out, "closed item "), out)
 	}
-	if !strings.Contains(out, "closed (15):") {
-		t.Fatalf("expected the header count to show the true total (15), not the capped count:\n%s", out)
+	if !strings.Contains(out, "closed (15 total, 0 p0, 0 p1, 0 p2, 15 none):") {
+		t.Fatalf("expected the header to show the true total and priority breakdown:\n%s", out)
 	}
-	if !strings.Contains(out, "... and 5 more") {
-		t.Fatalf("expected an omitted-count note:\n%s", out)
+	if !strings.Contains(out, "... and 12 more (use --track closed to see them all)") {
+		t.Fatalf("expected an omitted-count note pointing at --track:\n%s", out)
 	}
 }
 
-func TestListClosedLimitZeroIsUnlimited(t *testing.T) {
+func TestListSmallTrackSkipsBreakdown(t *testing.T) {
 	chdirTempRepo(t, "alice")
-	createClosedItems(t, 15)
+	if _, err := store.CreateItem("only item", store.TrackBacklog, store.PriorityNone, nil); err != nil {
+		t.Fatal(err)
+	}
 
-	out, err := runCmd(t, newListCmd(), "--closed-limit", "0")
+	out, err := runCmd(t, newListCmd())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(out, "closed item ") != 15 {
-		t.Fatalf("expected all 15 closed items, got %d", strings.Count(out, "closed item "))
+	if !strings.Contains(out, "backlog (1 total):") {
+		t.Fatalf("expected a plain total with no breakdown for a track at/under the cap:\n%s", out)
 	}
-	if strings.Contains(out, "more") {
-		t.Fatalf("did not expect an omitted-count note:\n%s", out)
+	if strings.Contains(out, "backlog (1 total, ") {
+		t.Fatalf("did not expect a priority breakdown for a track at/under the cap:\n%s", out)
 	}
 }
 
@@ -215,7 +277,7 @@ func TestListJSONOutput(t *testing.T) {
 	}
 }
 
-func TestListJSONRespectsClosedCap(t *testing.T) {
+func TestListJSONRespectsDashboardCap(t *testing.T) {
 	chdirTempRepo(t, "alice")
 	createClosedItems(t, 15)
 
@@ -227,7 +289,7 @@ func TestListJSONRespectsClosedCap(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &items); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	if len(items) != 10 {
-		t.Fatalf("got %d items, want 10 (capped)", len(items))
+	if len(items) != dashboardCap {
+		t.Fatalf("got %d items, want %d (capped)", len(items), dashboardCap)
 	}
 }

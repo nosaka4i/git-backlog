@@ -36,7 +36,7 @@ git backlog sync
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--track backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--label <name>]... [--as-agent]` | Create an item (defaults to `--track backlog`, unset priority) |
-| `list [--track <value>] [--priority <value>] [--label <value>]... [--closed-limit N] [--no-pager] [--json]` | List every item, grouped by track then priority, most-recently-updated-first within each group (empty tracks shown as `(empty)`); shows sync status when a remote's configured |
+| `list [--track <value>] [--priority <value>] [--label <value>]... [--no-pager] [--json]` | With no `--track`: a capped dashboard (3 items/track, priority-first). With `--track`: that one track in full, grouped by priority, uncapped, paged |
 | `show <id> [--json]` | Full item state plus its complete op-log history (newest first), including sync status |
 | `history [--track <value>] [--priority <value>] [--label <value>]... [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
 | `move <id> <backlog\|current\|closed> [--as-agent]` | Move an item to a different track (closing an item is just `move <id> closed`) |
@@ -58,11 +58,16 @@ array of items for `list`, one item plus its full op-log history for
 `show`) — same filtering, same sort order, unset priority simply omitted
 from the object rather than printed as a placeholder string.
 
-A successful backlog accumulates `closed` items forever, so `list` caps the
-closed section to the 10 most recently updated items by default (a
-`... and N more` note shows how many are hidden). `--closed-limit 0`
-removes the cap; `--track closed` also shows the full closed list, since
-asking for it specifically is already an explicit, narrow request.
+A backlog accumulates items forever, so bare `list` (no `--track`) is a
+dashboard, not a dump: each track shows a `(<N> total[, <priority
+breakdown>])` line and its 3 highest-priority items (most-recently-updated
+breaking ties), with an `... and N more` note when there's more to see.
+The priority breakdown is left off once a track is small enough that
+there's nothing left to summarize. Naming a track explicitly — `--track
+backlog` — is a deliberate, narrow request, so it bypasses the dashboard
+entirely: full track, uncapped, grouped by priority, paged. See
+[List: dashboard vs. a track in full](#list-dashboard-vs-a-track-in-full)
+below for the full shape of both views.
 
 ### Command reference
 
@@ -91,17 +96,18 @@ Creates a new item and prints its short id.
 
 **`list`**
 ```
-git backlog list [--track <value>] [--priority <value>] [--label <value>]...
-                  [--closed-limit N] [--no-pager] [--json]
+git backlog list [--track <value>] [--priority <value>[,<value>...]] [--label <value>]...
+                  [--no-pager] [--json]
 ```
-Lists every item, grouped by track then priority, most-recently-updated
-first within each group; shows sync status when a remote's configured.
-- `--track backlog|current|closed` — narrow to one track
-- `--priority p0|p1|p2|none` — narrow to one priority
+With no `--track`: a capped dashboard, one section per track, 3
+highest-priority items each. With `--track`: that one track in full,
+grouped by priority sub-headers, uncapped, paged — today's original
+`list` behavior. Both show sync status when a remote's configured.
+- `--track backlog|current|closed` — switch to that one track's full, uncapped view
+- `--priority p0,p1,...` — comma-separated list of `p0`/`p1`/`p2`/`none`; matches items at *any* of the given values (OR, unlike `--label`'s AND)
 - `--label <name>` — narrow to items carrying all of these labels; repeatable
-- `--closed-limit N` — cap the closed section to N most recent (default 10, 0 = unlimited); ignored when `--track closed` is set
 - `--no-pager` — never pipe through a pager, even on a terminal
-- `--json` — machine-readable output instead
+- `--json` — machine-readable output instead (always the filtered-and-capped set, same as the dashboard, unless `--track` is given)
 
 **`show`**
 ```
@@ -114,7 +120,7 @@ history, newest first.
 
 **`history`**
 ```
-git backlog history [--track <value>] [--priority <value>] [--label <value>]...
+git backlog history [--track <value>] [--priority <value>[,<value>...]] [--label <value>]...
                      [--no-pager] [--json]
 ```
 Chronological activity trail across every item, newest first. Filters
@@ -201,6 +207,77 @@ fast-forwarded, and merged.
 git backlog version
 ```
 Prints the git-backlog version. No flags.
+
+### List: dashboard vs. a track in full
+
+Bare `list` (no `--track`) is a dashboard: a quick "what's the state of
+things" glance, not a retrieval mechanism — that's what naming a track
+explicitly is for. Each section shows a fixed 3 items (highest priority
+first, ties broken by most-recently-updated), so the whole dashboard's
+line count stays predictable no matter how many items exist or how
+they're spread across priorities:
+
+```
+sync: 2 ahead, 1 behind, 3 not yet synced
+last 24h: 2 new, 1 closed
+
+current (1 total):
+
+  p0 2c6334e  confidence scoring for deterministic  ↑1
+
+backlog (42 total, 0 p0, 3 p1, 1 p2, 38 none):
+
+  p1 a7fb723  Transcript/Actions view can show stale content after a…  (not synced)
+  p1 b936bd7  things in a series are broken if multiple confirmations …
+  p1 dd64ca3  compound statements latter half are being ignored.
+  ... and 39 more (use --track backlog to see them all)
+
+closed (18 total, 5 p0, 2 p1, 1 p2, 10 none):
+
+  p0 0038514  whisper prompt bias  [reminder-mvp]
+  p0 4b13782  add reminder due date
+  p0 d3cc34e  add reminder notes
+  ... and 15 more (use --track closed to see them all)
+```
+
+- `sync:` and `last 24h:` are always global — the whole repo's state, not
+  just whatever's currently filtered into view (same as `sync:` already
+  was). `last 24h` is a rolling 24-hour window (not a calendar day, which
+  is meaningless across time zones), and only counts two events: items
+  created and items moved to `closed`. Renames, priority/label/comment
+  edits, and moves between `backlog`/`current` aren't counted — unlike
+  "created" or "closed", they have no unambiguous meaning in aggregate
+  ("10 priority changes" could mean anything). Prints `last 24h: none`
+  when nothing happened in the window, rather than disappearing.
+- The `(<N> total, ...)` breakdown always lists all four priority tiers,
+  including zero counts, `npm audit`-style — no wondering whether `p0`
+  was omitted or just empty. It's left off entirely once a track's total
+  is already ≤ 3 (nothing left to summarize beyond what's on screen).
+- `--priority`/`--label` filters still apply to the dashboard the same
+  way they apply everywhere else; a track's cap and breakdown reflect the
+  filtered set, not the track's unfiltered contents.
+
+Naming a track explicitly bypasses all of this — `--track backlog` is a
+deliberate, narrow request, so it gets the real thing: every item, grouped
+under priority sub-headers, uncapped, paged (this is `list`'s original
+behavior, unchanged):
+
+```
+backlog (42):
+  p1:
+    a7fb723  Transcript/Actions view can show stale content after a long …  (not synced)
+    b936bd7  things in a series are broken if multiple confirmations requ…
+    dd64ca3  compound statements latter half are being ignored.
+  p2:
+    7892993  FILTER_EXTRACTION_GUIDANCE thematic-keyword guardrail unreli…
+  unprioritized:
+    7105878  yes/no audio flush is slow  (not synced)
+    ... (37 more unprioritized items, one line each)
+```
+
+`--json` follows the same rule: the filtered-and-capped set for bare
+`list`, the filtered-and-uncapped set for `--track <value>` — same data
+either output mode shows, just machine-readable.
 
 ### Labels
 
@@ -349,6 +426,22 @@ log`/`git diff` (`$GIT_PAGER`, `core.pager`, then `$PAGER`, then `less` —
 git's own precedence, so an existing git pager setup already applies);
 `--no-pager` disables it, and piped/redirected/`--json` output is never
 paged.
+
+**Paging not kicking in even though the output is longer than one
+screen?** Check `$GIT_PAGER` first — it wins over `core.pager` and
+`$PAGER`, so `GIT_PAGER=cat` (or `=""`) anywhere in your environment
+silently disables paging for `list`/`history` exactly as it would for
+`git log`/`git diff`, with no warning. It's an easy thing to pick up
+without meaning to: a `TERM` value with no local terminfo entry makes
+`less` print `WARNING: terminal is not fully functional`, and setting
+`GIT_PAGER=cat` in a shell rc file is a common way people silence that —
+which then quietly kills paging everywhere, forever, even after the
+terminfo gap gets fixed. If that's the case, fix the terminfo entry
+instead of leaving paging off (`infocmp "$TERM"` tells you whether one's
+already installed). Either way, `unset GIT_PAGER`/`export GIT_PAGER=`
+in your rc file only affects *new* shells — an already-exported value
+sticks in your current shell's environment until you `unset` it there
+too or open a fresh terminal.
 
 `history` flattens every item's op-log into one chronological feed —
 same `--track`/`--priority` filters as `list`, applied to items' *current*
