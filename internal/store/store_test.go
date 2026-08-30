@@ -271,13 +271,70 @@ func TestAllItems(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	items, err := AllItems()
+	items, skipped, err := AllItems()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(items) != len(titles) {
 		t.Fatalf("AllItems returned %d items, want %d", len(items), len(titles))
 	}
+	if len(skipped) != 0 {
+		t.Fatalf("expected nothing skipped, got %v", skipped)
+	}
+}
+
+// TestAllItemsSkipsOneBrokenItemInsteadOfAborting confirms a single
+// corrupt item can't take the whole call down with it — confirmed live
+// 2026-08-30, a broken item made `list` hard-error and print nothing at
+// all instead of showing everything else.
+func TestAllItemsSkipsOneBrokenItemInsteadOfAborting(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	good1, err := CreateItem("good one", TrackBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad, err := CreateItem("will be corrupted", TrackBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	good2, err := CreateItem("good two", TrackBacklog, PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt `bad` directly at the git-object level: a tree with no
+	// title entry at all, same shape as the live corruption this guards
+	// against, committed straight onto the item's ref (bypassing applyOp,
+	// which would never itself produce this).
+	tree, err := gitx.MkTree(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := gitx.CommitTree(tree, []string{bad.ID}, "corrupt: no fields at all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gitx.UpdateRef(RefFor(bad.ID), commit, bad.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	items, skipped, err := AllItems()
+	if err != nil {
+		t.Fatalf("AllItems should not hard-error on one broken item: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected the 2 good items, got %d", len(items))
+	}
+	for _, it := range items {
+		if it.ID == bad.ID {
+			t.Fatalf("the broken item should have been skipped, not returned: %+v", it)
+		}
+	}
+	if len(skipped) != 1 || skipped[0].ID != bad.ID {
+		t.Fatalf("expected exactly the broken item reported as skipped, got %+v", skipped)
+	}
+	_ = good1
+	_ = good2
 }
 
 func TestHistoryTracksEachOperation(t *testing.T) {

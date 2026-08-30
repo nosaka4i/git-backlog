@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -33,10 +34,11 @@ func newListCmd() *cobra.Command {
 			if err := requireInit(); err != nil {
 				return err
 			}
-			allItems, err := store.AllItems()
+			allItems, skipped, err := store.AllItems()
 			if err != nil {
 				return err
 			}
+			warnSkippedItems(skipped)
 			items := allItems
 			displayTracks := []store.Track{store.TrackCurrent, store.TrackBacklog, store.TrackClosed}
 			explicitTrack := trackFlag != ""
@@ -355,6 +357,16 @@ func filterTrack(items []*store.Item, b store.Track) []*store.Item {
 		}
 	}
 	return out
+}
+
+// warnSkippedItems prints one line to stderr per item AllItems() couldn't
+// load, so a corrupt item is still visible instead of just silently missing
+// from the count — shared by list/history/label, every AllItems() caller.
+// Goes to stderr specifically so it never lands inside --json/paged output.
+func warnSkippedItems(skipped []store.ItemLoadError) {
+	for _, s := range skipped {
+		fmt.Fprintf(os.Stderr, "warning: skipped item %s (failed to load): %s\n", store.ShortID(s.ID), s.Err)
+	}
 }
 
 func truncate(s string, n int) string {

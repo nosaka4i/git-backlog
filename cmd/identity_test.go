@@ -100,7 +100,7 @@ func TestAddAsAgentSetsPermanentOwner(t *testing.T) {
 	if _, err := runCmd(t, newAddCmd(), "agent-created item", "--as-agent"); err != nil {
 		t.Fatal(err)
 	}
-	items, err := store.AllItems()
+	items, _, err := store.AllItems()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestAddAsAgentSetsPermanentOwner(t *testing.T) {
 	if _, err := runCmd(t, newAddCmd(), "human-created item"); err != nil {
 		t.Fatal(err)
 	}
-	items, err = store.AllItems()
+	items, _, err = store.AllItems()
 	if err != nil {
 		t.Fatal(err)
 	}

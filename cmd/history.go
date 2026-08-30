@@ -20,10 +20,11 @@ func newHistoryCmd() *cobra.Command {
 			if err := requireInit(); err != nil {
 				return err
 			}
-			items, err := store.AllItems()
+			items, skipped, err := store.AllItems()
 			if err != nil {
 				return err
 			}
+			warnSkippedItems(skipped)
 			if trackFlag != "" {
 				b, err := store.ParseTrack(trackFlag)
 				if err != nil {

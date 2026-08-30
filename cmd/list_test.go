@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nosaka4i/git-backlog/internal/gitx"
 	"github.com/nosaka4i/git-backlog/internal/store"
 )
 
@@ -46,6 +47,43 @@ func TestListGroupsByTrackThenPriority(t *testing.T) {
 	closedSection := out[closedIdx:]
 	if !strings.Contains(closedSection, "(empty)") {
 		t.Fatalf("expected closed section to say (empty):\n%s", closedSection)
+	}
+}
+
+// TestListSkipsCorruptItemInsteadOfAborting confirms `list` shows every
+// good item instead of hard-erroring the moment ANY one item is broken —
+// confirmed live 2026-08-30, one corrupt item used to take the whole
+// command down and print nothing at all.
+func TestListSkipsCorruptItemInsteadOfAborting(t *testing.T) {
+	chdirTempRepo(t, "alice")
+	if _, err := store.CreateItem("fine item", store.TrackBacklog, store.PriorityNone, nil); err != nil {
+		t.Fatal(err)
+	}
+	bad, err := store.CreateItem("about to be corrupted", store.TrackBacklog, store.PriorityNone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := gitx.MkTree(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := gitx.CommitTree(tree, []string{bad.ID}, "corrupt: no fields at all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gitx.UpdateRef(store.RefFor(bad.ID), commit, bad.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCmd(t, newListCmd())
+	if err != nil {
+		t.Fatalf("list should not hard-error on one corrupt item: %v", err)
+	}
+	if !strings.Contains(out, "fine item") {
+		t.Fatalf("expected the good item to still show up:\n%s", out)
+	}
+	if !strings.Contains(out, "warning: skipped item "+store.ShortID(bad.ID)) {
+		t.Fatalf("expected a warning naming the skipped item:\n%s", out)
 	}
 }
 

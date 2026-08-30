@@ -70,8 +70,12 @@ func runGitInit(t *testing.T, dir string) {
 }
 
 // runCmd executes a freshly constructed cobra command with args, capturing
-// stdout. Commands print via fmt.Print* directly to os.Stdout rather than
-// cmd.OutOrStdout(), so stdout itself has to be redirected.
+// stdout AND stderr into one combined string (order between the two isn't
+// guaranteed, only that both are present — good enough for a
+// strings.Contains check on a stray warning like warnSkippedItems'
+// output). Commands print via fmt.Print* directly to os.Stdout/os.Stderr
+// rather than cmd.OutOrStdout()/cmd.ErrOrStderr(), so both have to be
+// redirected directly.
 func runCmd(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
 	t.Helper()
 	cmd.SilenceUsage = true
@@ -82,8 +86,9 @@ func runCmd(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	orig := os.Stdout
+	origOut, origErr := os.Stdout, os.Stderr
 	os.Stdout = w
+	os.Stderr = w
 	outCh := make(chan string, 1)
 	go func() {
 		var buf bytes.Buffer
@@ -94,7 +99,7 @@ func runCmd(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
 	runErr := cmd.Execute()
 
 	w.Close()
-	os.Stdout = orig
+	os.Stdout, os.Stderr = origOut, origErr
 	out := <-outCh
 	return out, runErr
 }

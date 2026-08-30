@@ -66,6 +66,13 @@ func LoadItem(idPrefix string) (*Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", ref, err)
 	}
+	return loadItemFromTip(id, ref, tip)
+}
+
+// loadItemFromTip builds an Item from a ref's already-known tip commit hash
+// — shared by LoadItem (which resolves tip via rev-parse first) and
+// AllItems (which already has it from ForEachRef).
+func loadItemFromTip(id, ref, tip string) (*Item, error) {
 	tipCommit, err := gitx.CatCommit(tip)
 	if err != nil {
 		return nil, err
@@ -84,38 +91,43 @@ func LoadItem(idPrefix string) (*Item, error) {
 	return itemFromEntries(id, ref, tip, entries, tipCommit, createCommit)
 }
 
+// ItemLoadError names one item AllItems() couldn't load, and why. Kept
+// separate from AllItems' error return so a single broken item — a bad
+// commit/tree, a required field missing — can't take the entire listing
+// down with it; see AllItems' comment.
+type ItemLoadError struct {
+	ID  string
+	Err error
+}
+
+func (e ItemLoadError) Error() string {
+	return fmt.Sprintf("%s: %s", ShortID(e.ID), e.Err)
+}
+
 // AllItems loads every tracked item. Order is unspecified; callers sort for
-// display.
-func AllItems() ([]*Item, error) {
+// display. An item that fails to load (a broken commit/tree, a required
+// field missing) is skipped rather than aborting the whole call — reported
+// back via the second return value instead, so one corrupt item can't take
+// `list`/`history`/`label` down with it. Confirmed live (2026-08-30): a
+// single item corrupted by a since-fixed bug elsewhere made `list` hard-
+// error and print nothing at all, hiding every other item along with it.
+func AllItems() ([]*Item, []ItemLoadError, error) {
 	refs, err := gitx.ForEachRef(refNamespace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	items := make([]*Item, 0, len(refs))
+	var skipped []ItemLoadError
 	for _, r := range refs {
 		id := IDFromRef(r.Ref)
-		tipCommit, err := gitx.CatCommit(r.Hash)
+		item, err := loadItemFromTip(id, r.Ref, r.Hash)
 		if err != nil {
-			return nil, err
-		}
-		entries, err := gitx.LsTree(tipCommit.Tree)
-		if err != nil {
-			return nil, err
-		}
-		createCommit := tipCommit
-		if r.Hash != id {
-			createCommit, err = gitx.CatCommit(id)
-			if err != nil {
-				return nil, err
-			}
-		}
-		item, err := itemFromEntries(id, r.Ref, r.Hash, entries, tipCommit, createCommit)
-		if err != nil {
-			return nil, err
+			skipped = append(skipped, ItemLoadError{ID: id, Err: err})
+			continue
 		}
 		items = append(items, item)
 	}
-	return items, nil
+	return items, skipped, nil
 }
 
 // SetTrack records a track-change operation. identity is nil to use the

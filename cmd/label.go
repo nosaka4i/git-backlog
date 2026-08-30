@@ -72,10 +72,11 @@ func newLabelCmd() *cobra.Command {
 // it, most-used first (ties broken alphabetically) — the bare `label`
 // command, mirroring how `git tag`/`git branch` list with no arguments.
 func runLabelRoster(jsonFlag bool) error {
-	items, err := store.AllItems()
+	items, skipped, err := store.AllItems()
 	if err != nil {
 		return err
 	}
+	warnSkippedItems(skipped)
 	counts := make(map[string]int)
 	for _, it := range items {
 		for _, l := range it.Labels {
