@@ -6,29 +6,21 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/nosaka4i/git-backlog/internal/store"
 	"github.com/spf13/cobra"
 )
 
-// dashboardCap is how many items each track shows in the default (no
-// --track) list view. Chosen so the whole dashboard -- sync line, last-24h
-// line, and all three tracks -- reliably fits inside a 24-row terminal
-// regardless of how items are spread across priorities: a fixed 3 items
-// per track, no priority sub-headers, keeps each track's line count
-// predictable instead of ballooning with however many priority groups its
-// top items happen to span. Asking for a track by name (--track) bypasses
-// this entirely and shows everything, paged, same as it always has.
-const dashboardCap = 3
-
 func newListCmd() *cobra.Command {
-	var trackFlag, priorityFlag string
+	var trackFlag, priorityFlag, grepFlag string
 	var labelFlag []string
+	var topFlag int
 	var jsonFlag, noPagerFlag bool
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List backlog items: a capped dashboard by default, or a full track with --track",
+		Short: "List backlog items: everything by default, or --top N per track for a capped view",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireInit(); err != nil {
@@ -41,8 +33,7 @@ func newListCmd() *cobra.Command {
 			warnSkippedItems(skipped)
 			items := allItems
 			displayTracks := []store.Track{store.TrackCurrent, store.TrackBacklog, store.TrackClosed}
-			explicitTrack := trackFlag != ""
-			if explicitTrack {
+			if trackFlag != "" {
 				b, err := store.ParseTrack(trackFlag)
 				if err != nil {
 					return err
@@ -60,6 +51,9 @@ func newListCmd() *cobra.Command {
 			if len(labelFlag) > 0 {
 				items = filterLabels(items, labelFlag)
 			}
+			if grepFlag != "" {
+				items = filterGrep(items, grepFlag)
+			}
 
 			byTrack := make(map[store.Track][]*store.Item)
 			for _, it := range items {
@@ -67,38 +61,42 @@ func newListCmd() *cobra.Command {
 			}
 			for _, group := range byTrack {
 				sort.SliceStable(group, func(i, j int) bool {
+					if grepFlag != "" {
+						ti, tj := grepTier(group[i], grepFlag), grepTier(group[j], grepFlag)
+						if ti != tj {
+							return ti < tj
+						}
+					}
 					if group[i].Priority.Rank() != group[j].Priority.Rank() {
 						return group[i].Priority.Rank() < group[j].Priority.Rank()
 					}
 					return group[i].UpdatedAt.After(group[j].UpdatedAt)
 				})
 			}
-			totalByTrack := make(map[store.Track]int, len(byTrack))
-			for b, group := range byTrack {
-				totalByTrack[b] = len(group)
-			}
 
-			// The dashboard cap only kicks in when the caller didn't name a
-			// track explicitly -- same rule `closed` alone used to follow
-			// (via the now-retired --closed-limit), extended to every
-			// track. shown holds what actually gets printed/JSON'd; the
-			// uncapped byTrack groups stay around for the per-track
-			// priority-breakdown counts.
+			// A cap only kicks in when --top is given: with no --top, list
+			// shows every matching item, uncapped, paged -- same as
+			// --track/--priority/--label always have. shown holds what
+			// actually gets printed/JSON'd; the uncapped byTrack groups
+			// stay around for the per-track priority-breakdown counts.
+			capped := topFlag > 0
 			shownByTrack := byTrack
-			if !explicitTrack {
+			if capped {
 				shownByTrack = make(map[store.Track][]*store.Item, len(byTrack))
 				for b, group := range byTrack {
-					if len(group) > dashboardCap {
-						shownByTrack[b] = group[:dashboardCap]
+					if len(group) > topFlag {
+						shownByTrack[b] = group[:topFlag]
 					} else {
 						shownByTrack[b] = group
 					}
 				}
 			}
 
+			showSync := false
 			syncStates := make(map[string]*store.ItemSyncState)
 			syncRemote, remoteErr := store.ResolveRemote("")
 			if remoteErr == nil {
+				showSync = true
 				for _, it := range items {
 					s, err := store.SyncState(it.ID, syncRemote)
 					if err != nil {
@@ -133,71 +131,85 @@ func newListCmd() *cobra.Command {
 			fmt.Fprintln(w, last24hLine(added, closed))
 			fmt.Fprintln(w)
 
-			if explicitTrack {
-				writeTrackFull(w, displayTracks[0], byTrack[displayTracks[0]], syncStates)
-			} else {
-				for _, b := range displayTracks {
-					writeTrackDashboard(w, b, byTrack[b], shownByTrack[b], syncStates)
+			for _, b := range displayTracks {
+				if capped {
+					writeTrackDashboard(w, b, byTrack[b], shownByTrack[b], syncStates, topFlag, showSync)
+				} else {
+					writeTrackFull(w, b, byTrack[b], syncStates, showSync)
 				}
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&trackFlag, "track", "", "show one track in full, uncapped, paged: backlog|current|closed")
+	cmd.Flags().StringVar(&trackFlag, "track", "", "limit to one track: backlog|current|closed")
 	cmd.Flags().StringVar(&priorityFlag, "priority", "", "filter to a comma-separated list of p0,p1,p2,none")
 	cmd.Flags().StringArrayVar(&labelFlag, "label", nil, "filter to items carrying all of these labels (repeatable)")
+	cmd.Flags().StringVar(&grepFlag, "grep", "", "filter to items matching this text in title, description, or comment (case-insensitive); matches rank title first, then description, then comment")
+	cmd.Flags().IntVar(&topFlag, "top", 0, "show only the top N items per track (by priority, then most recently updated); omit for the full uncapped list")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&noPagerFlag, "no-pager", false, "don't pipe output through a pager, even on a terminal")
 	return cmd
 }
 
-// writeTrackDashboard renders one track for the default (no --track) view:
-// "<track> (<N> total[, <breakdown>]):", then up to dashboardCap items with
-// priority inlined per line instead of grouped under sub-headers, so a
-// track's line count never depends on how spread out its priorities are.
-// The breakdown is left off when everything already fits (nothing to
-// summarize beyond what's already on screen).
-func writeTrackDashboard(w io.Writer, b store.Track, full, shown []*store.Item, syncStates map[string]*store.ItemSyncState) {
+// writeTrackDashboard renders one track for a capped (--top N) view:
+// "<track> (<N> total[, <breakdown>]):", then an aligned table of up to N
+// items. The breakdown is left off when everything already fits (nothing
+// to summarize beyond what's already on screen).
+func writeTrackDashboard(w io.Writer, b store.Track, full, shown []*store.Item, syncStates map[string]*store.ItemSyncState, top int, showSync bool) {
 	total := len(full)
-	if total > dashboardCap {
+	if total > top {
 		fmt.Fprintf(w, "%s (%d total, %s):\n", b, total, priorityCounts(full))
 	} else {
 		fmt.Fprintf(w, "%s (%d total):\n", b, total)
 	}
 	fmt.Fprintln(w)
 	if len(shown) == 0 {
-		fmt.Fprintln(w, "  (empty)")
+		fmt.Fprintln(w, "(empty)")
 	} else {
-		for _, it := range shown {
-			fmt.Fprintf(w, "  %s %s  %s%s%s\n", priorityTag(it.Priority), store.ShortID(it.ID),
-				truncate(it.Title, 60), labelSuffix(it.Labels), syncMarker(syncStates[it.ID]))
-		}
-		if total > dashboardCap {
-			fmt.Fprintf(w, "  ... and %d more (use --track %s to see them all)\n", total-dashboardCap, b)
+		writeItemTable(w, shown, syncStates, showSync)
+		if total > top {
+			fmt.Fprintf(w, "... and %d more (raise or drop --top to see them all)\n", total-top)
 		}
 	}
 	fmt.Fprintln(w)
 }
 
-// writeTrackFull renders one track exactly as `list` has always rendered
-// it: every item, grouped under a priority sub-header, no cap. This is
-// what an explicit --track opts into -- a deliberate, narrow request gets
-// the real thing, same as --track closed always has.
-func writeTrackFull(w io.Writer, b store.Track, group []*store.Item, syncStates map[string]*store.ItemSyncState) {
+// writeTrackFull renders one track with every item, no cap -- the default
+// view, and what --track has always shown for a single track.
+func writeTrackFull(w io.Writer, b store.Track, group []*store.Item, syncStates map[string]*store.ItemSyncState, showSync bool) {
 	fmt.Fprintf(w, "%s (%d):\n", b, len(group))
 	if len(group) == 0 {
-		fmt.Fprintln(w, "  (empty)")
+		fmt.Fprintln(w, "(empty)")
 		return
 	}
-	lastPriority := -1
-	for _, it := range group {
-		if it.Priority.Rank() != lastPriority {
-			lastPriority = it.Priority.Rank()
-			fmt.Fprintln(w, "  "+groupLabel(it.Priority))
-		}
-		fmt.Fprintf(w, "    %s  %s%s%s\n", store.ShortID(it.ID), truncate(it.Title, 60),
-			labelSuffix(it.Labels), syncMarker(syncStates[it.ID]))
+	writeItemTable(w, group, syncStates, showSync)
+}
+
+// writeItemTable renders items as an aligned, headered table -- ID,
+// PRIORITY, TITLE, LABELS, and (when a remote is configured) SYNC, one row
+// per item, ollama-list/docker-ps/kubectl-get style. Columns are sized to
+// their widest cell via text/tabwriter, so a value like "(not synced)"
+// lands in a fixed column instead of trailing off at a different position
+// on every row depending on how long that row's title happened to be.
+// Priority rides along as its own column instead of a grouping sub-header,
+// so every row has the same shape regardless of how spread out priorities
+// are; the sort that put items in this order (priority, then most-recently-
+// updated) already clusters same-priority rows together.
+func writeItemTable(w io.Writer, items []*store.Item, syncStates map[string]*store.ItemSyncState, showSync bool) {
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	if showSync {
+		fmt.Fprintln(tw, "ID\tPRIORITY\tTITLE\tLABELS\tSYNC")
+	} else {
+		fmt.Fprintln(tw, "ID\tPRIORITY\tTITLE\tLABELS")
 	}
+	for _, it := range items {
+		row := []string{store.ShortID(it.ID), priorityTag(it.Priority), truncate(it.Title, 60), strings.Join(it.Labels, ", ")}
+		if showSync {
+			row = append(row, strings.TrimSpace(syncMarker(syncStates[it.ID])))
+		}
+		fmt.Fprintln(tw, strings.Join(row, "\t"))
+	}
+	tw.Flush()
 }
 
 // priorityTag renders an item's priority as the dashboard's leading
@@ -333,20 +345,36 @@ func filterLabels(items []*store.Item, want []string) []*store.Item {
 	return out
 }
 
-// labelSuffix renders an item's labels as a compact inline tag list for the
-// list view, or "" when it has none.
-func labelSuffix(labels []string) string {
-	if len(labels) == 0 {
-		return ""
+// grepTier reports where term (case-insensitive substring) matches an
+// item, lowest first so a SliceStable sort by tier ranks the most
+// relevant field first: 0 = title, 1 = description, 2 = comment, 3 = no
+// match at all (filterGrep never lets that last case through, but the
+// tier is still well-defined if grepTier is ever called on its own).
+func grepTier(it *store.Item, term string) int {
+	term = strings.ToLower(term)
+	switch {
+	case strings.Contains(strings.ToLower(it.Title), term):
+		return 0
+	case strings.Contains(strings.ToLower(it.Description), term):
+		return 1
+	case strings.Contains(strings.ToLower(it.Comment), term):
+		return 2
+	default:
+		return 3
 	}
-	return "  [" + strings.Join(labels, ", ") + "]"
 }
 
-func groupLabel(p store.Priority) string {
-	if p == store.PriorityNone {
-		return "unprioritized:"
+// filterGrep keeps items whose title, description, or comment contains
+// term (case-insensitive substring, not a regex -- kept simple and
+// predictable rather than pattern matching like git log --grep).
+func filterGrep(items []*store.Item, term string) []*store.Item {
+	out := make([]*store.Item, 0, len(items))
+	for _, it := range items {
+		if grepTier(it, term) < 3 {
+			out = append(out, it)
+		}
 	}
-	return string(p) + ":"
+	return out
 }
 
 func filterTrack(items []*store.Item, b store.Track) []*store.Item {

@@ -36,7 +36,7 @@ git backlog sync
 |---|---|
 | `init` | Start tracking backlog items in the current repo |
 | `add "<title>" [--track backlog\|current\|closed] [--priority p0\|p1\|p2] [--description "<text>"] [--label <name>]... [--as-agent]` | Create an item (defaults to `--track backlog`, unset priority) |
-| `list [--track <value>] [--priority <value>] [--label <value>]... [--no-pager] [--json]` | With no `--track`: a capped dashboard (3 items/track, priority-first). With `--track`: that one track in full, grouped by priority, uncapped, paged |
+| `list [--track <value>] [--priority <value>] [--label <value>]... [--grep <text>] [--top <n>] [--no-pager] [--json]` | Everything by default, grouped by track then priority, uncapped, paged. `--top <n>` caps each track to its *n* highest-priority items; `--grep <text>` filters by text in title/description/comment |
 | `show <id> [--json]` | Full item state plus its complete op-log history (newest first), including sync status |
 | `history [--track <value>] [--priority <value>] [--label <value>]... [--json] [--no-pager]` | Chronological activity trail across every item, newest first |
 | `move <id> <backlog\|current\|closed> [--as-agent]` | Move an item to a different track (closing an item is just `move <id> closed`) |
@@ -58,16 +58,15 @@ array of items for `list`, one item plus its full op-log history for
 `show`) — same filtering, same sort order, unset priority simply omitted
 from the object rather than printed as a placeholder string.
 
-A backlog accumulates items forever, so bare `list` (no `--track`) is a
-dashboard, not a dump: each track shows a `(<N> total[, <priority
-breakdown>])` line and its 3 highest-priority items (most-recently-updated
-breaking ties), with an `... and N more` note when there's more to see.
-The priority breakdown is left off once a track is small enough that
-there's nothing left to summarize. Naming a track explicitly — `--track
-backlog` — is a deliberate, narrow request, so it bypasses the dashboard
-entirely: full track, uncapped, grouped by priority, paged. See
-[List: dashboard vs. a track in full](#list-dashboard-vs-a-track-in-full)
-below for the full shape of both views.
+`list` shows every matching item by default, uncapped, paged, grouped by
+track then priority. Pass `--top <n>` for a capped, dashboard-style
+glance instead: each track shows a `(<N> total[, <priority breakdown>])`
+line and its *n* highest-priority items (most-recently-updated breaking
+ties), with an `... and N more` note when there's more. `--grep <text>`
+filters to items matching that text in title, description, or comment,
+ranking title matches first. See
+[List: full vs. capped view](#list-full-vs-capped-view) below for the
+full shape of both.
 
 ### Command reference
 
@@ -97,17 +96,20 @@ Creates a new item and prints its short id.
 **`list`**
 ```
 git backlog list [--track <value>] [--priority <value>[,<value>...]] [--label <value>]...
-                  [--no-pager] [--json]
+                  [--grep <text>] [--top <n>] [--no-pager] [--json]
 ```
-With no `--track`: a capped dashboard, one section per track, 3
-highest-priority items each. With `--track`: that one track in full,
-grouped by priority sub-headers, uncapped, paged — today's original
-`list` behavior. Both show sync status when a remote's configured.
-- `--track backlog|current|closed` — switch to that one track's full, uncapped view
+Shows every matching item by default as an aligned table
+(`ID`/`PRIORITY`/`TITLE`/`LABELS`, plus `SYNC` when a remote's
+configured), one section per track, uncapped, paged. Pass `--top <n>` for
+a capped view of the same table instead — see
+[List: full vs. capped view](#list-full-vs-capped-view) below.
+- `--track backlog|current|closed` — limit to one track
 - `--priority p0,p1,...` — comma-separated list of `p0`/`p1`/`p2`/`none`; matches items at *any* of the given values (OR, unlike `--label`'s AND)
 - `--label <name>` — narrow to items carrying all of these labels; repeatable
+- `--grep <text>` — filter to items matching this text in title, description, or comment (case-insensitive substring); title matches rank first, then description, then comment
+- `--top <n>` — cap each track to its *n* highest-priority items (most-recently-updated breaking ties), dashboard-style; omit for the full list
 - `--no-pager` — never pipe through a pager, even on a terminal
-- `--json` — machine-readable output instead (always the filtered-and-capped set, same as the dashboard, unless `--track` is given)
+- `--json` — machine-readable output instead (the same filtered/capped set as shown)
 
 **`show`**
 ```
@@ -208,78 +210,101 @@ git backlog version
 ```
 Prints the git-backlog version. No flags.
 
-### List: dashboard vs. a track in full
+### List: full vs. capped view
 
-Bare `list` (no `--track`) is a dashboard: a quick "what's the state of
-things" glance, not a retrieval mechanism — that's what naming a track
-explicitly is for. Each section shows a fixed 3 items (highest priority
-first, ties broken by most-recently-updated), so the whole dashboard's
-line count stays predictable no matter how many items exist or how
-they're spread across priorities:
+Bare `list` shows everything: every track, every item, as an aligned
+table (`ID`/`PRIORITY`/`TITLE`/`LABELS`, plus `SYNC` when a remote's
+configured — `ollama list`/`docker ps` style, columns sized to their
+widest cell), uncapped, paged. Nothing you just added or edited can get
+buried out of view — it's just a matter of scrolling the pager:
 
 ```
 sync: 1 ahead, 2 behind, 4 not yet synced
 last 24h: 3 new, 1 closed
 
+current (1):
+ID       PRIORITY  TITLE                               LABELS  SYNC
+9f3ac21  p0        tighten CORS policy before launch            ↑1
+
+backlog (17):
+ID       PRIORITY  TITLE                                     LABELS   SYNC
+4e1cb08  p1        rate limit the public API                          (not synced)
+7d9a441  p1        flaky checkout test under -race
+c2f9910  p1        paginate the /orders endpoint
+b81a337  p1        db migration script fails on empty table
+5a02ffe  p2        dark mode toggle persists across reload
+e6c1128  p2        export CSV button has wrong padding
+118bcaa  none      clean up unused feature flags
+... (10 more, one row each)
+
+closed (9):
+ID       PRIORITY  TITLE                                       LABELS
+6b0e824  p0        fix auth token refresh race condition
+1af7c50  p0        memory leak in background worker
+e33f902  p1        upgrade postgres driver to v15
+... (6 more, one row each)
+```
+
+Rows are sorted highest-priority first, most-recently-updated breaking
+ties — the same order the old priority sub-headers implied, just without
+the sub-headers.
+
+- `sync:` and `last 24h:` are always global — the whole repo's state, not
+  just whatever's currently filtered into view. `last 24h` is a rolling
+  24-hour window (not a calendar day, which is meaningless across time
+  zones), and only counts two events: items created and items moved to
+  `closed`. Renames, priority/label/comment edits, and moves between
+  `backlog`/`current` aren't counted — unlike "created" or "closed", they
+  have no unambiguous meaning in aggregate ("10 priority changes" could
+  mean anything). Prints `last 24h: none` when nothing happened in the
+  window, rather than disappearing.
+
+Pass `--top <n>` for a capped, dashboard-style glance instead — a quick
+"what's the state of things" read rather than full retrieval. Each
+section shows a fixed *n* items (highest priority first, ties broken by
+most-recently-updated), so the whole view's line count stays predictable
+no matter how many items exist or how they're spread across priorities:
+
+```
+$ git backlog list --top 3
+sync: 1 ahead, 2 behind, 4 not yet synced
+last 24h: 3 new, 1 closed
+
 current (1 total):
 
-  p0 9f3ac21  tighten CORS policy before launch  ↑1
+ID       PRIORITY  TITLE                               LABELS  SYNC
+9f3ac21  p0        tighten CORS policy before launch            ↑1
 
 backlog (17 total, 0 p0, 4 p1, 2 p2, 11 none):
 
-  p1 4e1cb08  rate limit the public API  (not synced)
-  p1 7d9a441  flaky checkout test under -race
-  p1 c2f9910  paginate the /orders endpoint
-  ... and 14 more (use --track backlog to see them all)
+ID       PRIORITY  TITLE                             LABELS  SYNC
+4e1cb08  p1        rate limit the public API                 (not synced)
+7d9a441  p1        flaky checkout test under -race
+c2f9910  p1        paginate the /orders endpoint
+... and 14 more (raise or drop --top to see them all)
 
 closed (9 total, 2 p0, 3 p1, 1 p2, 3 none):
 
-  p0 6b0e824  fix auth token refresh race condition
-  p0 1af7c50  memory leak in background worker
-  p1 e33f902  upgrade postgres driver to v15
-  ... and 6 more (use --track closed to see them all)
+ID       PRIORITY  TITLE                                   LABELS
+6b0e824  p0        fix auth token refresh race condition
+1af7c50  p0        memory leak in background worker
+e33f902  p1        upgrade postgres driver to v15
+... and 6 more (raise or drop --top to see them all)
 ```
 
-- `sync:` and `last 24h:` are always global — the whole repo's state, not
-  just whatever's currently filtered into view (same as `sync:` already
-  was). `last 24h` is a rolling 24-hour window (not a calendar day, which
-  is meaningless across time zones), and only counts two events: items
-  created and items moved to `closed`. Renames, priority/label/comment
-  edits, and moves between `backlog`/`current` aren't counted — unlike
-  "created" or "closed", they have no unambiguous meaning in aggregate
-  ("10 priority changes" could mean anything). Prints `last 24h: none`
-  when nothing happened in the window, rather than disappearing.
 - The `(<N> total, ...)` breakdown always lists all four priority tiers,
   including zero counts, `npm audit`-style — no wondering whether `p0`
   was omitted or just empty. It's left off entirely once a track's total
-  is already ≤ 3 (nothing left to summarize beyond what's on screen).
-- `--priority`/`--label` filters still apply to the dashboard the same
-  way they apply everywhere else; a track's cap and breakdown reflect the
-  filtered set, not the track's unfiltered contents.
+  is already ≤ *n* (nothing left to summarize beyond what's on screen).
+- `--priority`/`--label`/`--grep` filters apply the same way in either
+  view; a `--top`'d track's cap and breakdown reflect the filtered set,
+  not the track's unfiltered contents.
+- `--top` is independent of `--track` — `--track backlog --top 5` caps
+  just that one track's output to 5.
 
-Naming a track explicitly bypasses all of this — `--track backlog` is a
-deliberate, narrow request, so it gets the real thing: every item, grouped
-under priority sub-headers, uncapped, paged (this is `list`'s original
-behavior, unchanged):
-
-```
-backlog (17):
-  p1:
-    4e1cb08  rate limit the public API  (not synced)
-    7d9a441  flaky checkout test under -race
-    c2f9910  paginate the /orders endpoint
-    b81a337  db migration script fails on empty table
-  p2:
-    5a02ffe  dark mode toggle persists across reload
-    e6c1128  export CSV button has wrong padding
-  unprioritized:
-    118bcaa  clean up unused feature flags
-    ... (10 more unprioritized items, one line each)
-```
-
-`--json` follows the same rule: the filtered-and-capped set for bare
-`list`, the filtered-and-uncapped set for `--track <value>` — same data
-either output mode shows, just machine-readable.
+`--json` follows the same rule: the filtered set as shown, capped if
+`--top` was given, uncapped otherwise — same data either output mode
+shows, just machine-readable.
 
 ### Labels
 

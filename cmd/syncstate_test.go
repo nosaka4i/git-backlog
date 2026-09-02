@@ -111,8 +111,8 @@ func TestAllMarksAheadItemAndJSONIncludesSyncStatus(t *testing.T) {
 	if !strings.Contains(out, "1 ahead") {
 		t.Fatalf("expected the summary to mention 1 ahead:\n%s", out)
 	}
-	if !strings.Contains(out, "fix flaky test  ↑1") {
-		t.Fatalf("expected the item's line to have the ↑1 marker:\n%s", out)
+	if !strings.Contains(out, "fix flaky test") || !strings.Contains(out, "↑1") {
+		t.Fatalf("expected the item's row to show its title and the ↑1 marker:\n%s", out)
 	}
 
 	jsonOut, err := runCmd(t, newListCmd(), "--json")
@@ -180,8 +180,8 @@ func TestAllMarksDivergedItem(t *testing.T) {
 	if !strings.Contains(out, "1 diverged") {
 		t.Fatalf("expected the summary to mention 1 diverged:\n%s", out)
 	}
-	if !strings.Contains(out, "fix flaky test  ⇕") {
-		t.Fatalf("expected the item's line to have the diverged marker:\n%s", out)
+	if !strings.Contains(out, "fix flaky test") || !strings.Contains(out, "⇕") {
+		t.Fatalf("expected the item's row to show its title and the diverged marker:\n%s", out)
 	}
 	chdirTo(t, origA)
 }

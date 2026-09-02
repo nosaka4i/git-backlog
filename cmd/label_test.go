@@ -61,9 +61,9 @@ func TestListLabelFilter(t *testing.T) {
 	if !strings.Contains(out, "in sprint") || strings.Contains(out, "not in sprint") {
 		t.Fatalf("--label filter didn't narrow to the labeled item:\n%s", out)
 	}
-	// The label is shown inline in the list view.
-	if !strings.Contains(out, "[sprint-xyz]") {
-		t.Fatalf("list should show labels inline:\n%s", out)
+	// The label is shown in its own column in the list view.
+	if !strings.Contains(out, "sprint-xyz") {
+		t.Fatalf("list should show labels in the LABELS column:\n%s", out)
 	}
 }
 

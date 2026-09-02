@@ -263,63 +263,73 @@ line does both.
 
 **Read**
 ```
-git backlog list [--track <value>] [--priority <value>[,<value>...]] [--label <value>]... [--no-pager] [--json]
+git backlog list [--track <value>] [--priority <value>[,<value>...]] [--label <value>]... [--grep <text>] [--top <n>] [--no-pager] [--json]
 git backlog show <id> [--json]
 git backlog history [--track <value>] [--priority <value>[,<value>...]] [--label <value>]... [--json] [--no-pager]
 ```
-`list` has two shapes, chosen by whether `--track` was given.
+`list` shows every matching item by default, uncapped, paged, grouped by
+track (current, backlog, then closed — what you're actively doing first,
+what's queued next, what's done last). Each track renders as an aligned
+table — `ID`/`PRIORITY`/`TITLE`/`LABELS`, plus `SYNC` when a remote's
+configured, columns sized to their widest cell via `text/tabwriter`, the
+same shape `ollama list`/`docker ps`/`kubectl get` use — one row per
+item, sorted highest-priority first, ties broken by most-recently-
+updated: an item you just touched (even just a comment) surfaces to the
+top of its tier, so stale, untouched items sink down instead of an old
+item squatting at the top forever by virtue of having been created
+first. Priority rides along as its own column instead of a grouping
+sub-header — sub-headers made a track's total height depend on how many
+distinct priority tiers its visible items happened to span (anywhere
+from ~7 to ~11 lines for the same 3 items, depending on spread); a flat
+column fixes that regardless of spread, and reads closer to the tools
+this format is borrowed from besides. This was `list`'s original
+behavior (modulo the table), and a capped-by-default "dashboard" shape
+tried living in its place for a while but got reverted: the fixed
+3-per-track cap meant a just-added item with an unremarkable priority
+could be invisible on the very next `list` call, buried behind three
+unrelated higher-priority or more-recently-touched items — a real "wait,
+where did the item I just added go" report, not a hypothetical one.
 
-Bare `list` (no `--track`) is a **dashboard**, not a dump — its job is a
-quick "what's the state of things" glance, not retrieval. A backlog that's
-succeeding at its job accumulates items forever, and paging alone stopped
-being enough once a real backlog (40+ items) meant scrolling through
-several screens just to see what's current. So each track (current,
-backlog, then closed — what you're actively doing first, what's queued
-next, what's done last) prints a `(<N> total[, <priority breakdown>])`
-header, then a fixed **3** items — highest priority first, ties broken by
-most-recently-updated — with priority inlined per line (`p1 <id>
-<title>`) instead of grouped under sub-headers, and an `... and N more
-(use --track <track> to see them all)` note when there's more. Inlining
-priority instead of grouping under sub-headers matters here: a
-sub-header's line count depends on how many distinct priority tiers the
-visible items happen to span, which made a track's total height
-unpredictable (anywhere from ~7 to ~11 lines for the same 3 items,
-depending on spread) — flattening it fixes the line count regardless of
-spread, which is what makes "the whole dashboard fits in a small
-terminal" a guarantee rather than a coincidence. The priority breakdown
-lists all four tiers including zero counts (`npm audit`'s convention —
-count then label, comma-separated — rather than a proportional bar
-`git diff --stat` uses; a bar reads fine for "big vs. small" but can't
-distinguish e.g. 1 from 3 without an accompanying number, and once the
-number's there the bar's redundant) and is left off entirely once a
-track's total is already ≤ 3, since there's nothing left to summarize
-beyond what's already on screen.
+`--top <n>` opts back into that capped, dashboard-style view on demand:
+each track prints a `(<N> total[, <priority breakdown>])` header, then
+the same table capped to its top *n* rows, and an `... and N more (raise
+or drop --top to see them all)` note when there's more. The priority
+breakdown lists all four tiers including zero counts (`npm audit`'s
+convention — count then label, comma-separated — rather than a
+proportional bar `git diff --stat` uses; a bar reads fine for "big vs.
+small" but can't distinguish e.g. 1 from 3 without an accompanying
+number, and once the number's there the bar's redundant) and is left off
+entirely once a track's total is already ≤ *n*, since there's nothing
+left to summarize beyond what's already on screen. `--top` is
+independent of `--track` — `--track backlog --top 5` caps just that one
+track's output to 5.
 
-Naming a track explicitly — `--track backlog` — is a deliberate, narrow
-request, so it bypasses the dashboard and gets the real thing: every item
-in that track, grouped by priority tier (p0, p1, p2, then unprioritized)
-under sub-headers, sorted most-recently-updated-first within each group —
-an item you just touched (even just a comment) surfaces to the top of its
-tier, so stale, untouched items sink down instead of an old item
-squatting at the top of its tier forever by virtue of having been created
-first — uncapped, paged. This is `list`'s original, pre-dashboard
-behavior, unchanged; only the no-`--track` case changed shape. Long
-titles truncate for display (~60 chars + "…") in both shapes; `show`
-always prints the full title untruncated, plus the item's full op-log
-history, newest first (same convention as `history` and `comment show`,
-even though `store.History` itself returns oldest-first — `show`'s RunE
-reverses it for display). Both `list` shapes also report each item's
-status against the last-known remote — see "Sync state" under Sync &
-conflict resolution above — and both print a `sync:`-labeled summary line
-plus a `last 24h:` activity line above the track sections, always global
-(the whole repo's state, independent of any `--track`/`--priority`/
-`--label` filter on this particular call) — see below.
+`--grep <text>` filters to items whose title, description, or comment
+contains the text (case-insensitive substring, not a regex — kept
+simple and predictable rather than pattern matching like
+`git log --grep`). Matches rank by which field hit: a title match sorts
+before a description match, which sorts before a comment-only match, so
+the most likely-relevant items surface first regardless of priority;
+within the same match tier, the usual priority-then-recency order still
+applies. Composes with `--track`/`--priority`/`--label`/`--top` like any
+other filter.
+
+Long titles truncate for display (~60 chars + "…") in both shapes;
+`show` always prints the full title untruncated, plus the item's full
+op-log history, newest first (same convention as `history` and
+`comment show`, even though `store.History` itself returns oldest-first
+— `show`'s RunE reverses it for display). `list` also reports each
+item's status against the last-known remote — see "Sync state" under
+Sync & conflict resolution above — and prints a `sync:`-labeled summary
+line plus a `last 24h:` activity line above the track sections, always
+global (the whole repo's state, independent of any
+`--track`/`--priority`/`--label`/`--grep`/`--top` filter on this
+particular call) — see below.
 
 `--json` swaps the human-readable output for machine-readable JSON: the
-filtered-and-capped set for bare `list` (same shape the dashboard shows,
-just as objects), the filtered-and-uncapped set for `--track <value>` —
-a flag on the existing read commands, not a separate verb, matching how
-`kubectl`/`gh`/`docker` expose it.
+filtered set as shown — capped if `--top` was given, uncapped otherwise
+— a flag on the existing read commands, not a separate verb, matching
+how `kubectl`/`gh`/`docker` expose it.
 
 **`last 24h`**: a rolling 24-hour window (not a calendar day, which is
 meaningless once contributors span time zones), counting exactly two
