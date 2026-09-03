@@ -78,8 +78,22 @@ func MkTree(entries []TreeEntry) (string, error) {
 }
 
 // LsTree reads the flat (non-recursive) entries of a tree.
+//
+// --full-tree is required, not cosmetic: item trees are flat key/value
+// blobs (title, track, priority, ...) with no relation to the invoking
+// repo's directory layout, but plain `git ls-tree <tree>` without it
+// scopes its listing to whatever path matches the caller's current
+// subdirectory *within that tree* — sensible for a real work tree,
+// meaningless here. From any subdirectory whose name isn't literally one
+// of the field names, that scoping matches nothing and ls-tree silently
+// returns zero entries (not an error), which every field including title
+// then reads back as absent — surfacing as "has no title (corrupt?)" on
+// every single item. Confirmed live (2026-09-03): a peer session hit this
+// on every item in a 108-item backlog simply by running from
+// packages/server instead of the repo root; reproduced directly here too
+// by running `list` from internal/store.
 func LsTree(tree string) ([]TreeEntry, error) {
-	out, err := Run("ls-tree", tree)
+	out, err := Run("ls-tree", "--full-tree", tree)
 	if err != nil {
 		return nil, err
 	}

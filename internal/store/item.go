@@ -307,6 +307,27 @@ func applyOp(idPrefix string, changes map[string]*string, message string, identi
 	if err != nil {
 		return nil, err
 	}
+	// Sanity check before writing: applyOp only ever runs on an item that
+	// already exists (CreateItem is the only path that starts from no
+	// prior state), so current must already carry a title unless this
+	// very op is the one setting it. If it doesn't, current came back
+	// suspiciously empty/incomplete — most likely a transient failure
+	// reading tipCommit.Tree's entries (e.g. a gc/repack window) rather
+	// than the item actually having no title. Silently proceeding here
+	// would snapshotEntries() the change on top of that empty base and
+	// permanently drop title/track/priority/labels/etc. from the new
+	// commit, indistinguishable afterward from real corruption — this is
+	// exactly the failure mode confirmed live 2026-09-03 (nosaka item
+	// d6e02ce: a describe op landed with only clock+description, even
+	// though its parent commit's tree had all 6 fields). Fail loud and
+	// retryable instead.
+	if currentTitle, err := fieldValue(current, fieldTitle); err != nil {
+		return nil, err
+	} else if currentTitle == "" {
+		if newTitle := changes[fieldTitle]; newTitle == nil || *newTitle == "" {
+			return nil, fmt.Errorf("refusing to record operation on %s: current snapshot has no title (transient read failure reading its tree?) — retry", ShortID(id))
+		}
+	}
 	currentClockRaw, err := fieldValue(current, fieldClock)
 	if err != nil {
 		return nil, err
