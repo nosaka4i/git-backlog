@@ -180,9 +180,10 @@ func writeTrackFull(w io.Writer, b store.Track, group []*store.Item, syncStates 
 	fmt.Fprintf(w, "%s (%d):\n", b, len(group))
 	if len(group) == 0 {
 		fmt.Fprintln(w, "(empty)")
-		return
+	} else {
+		writeItemTable(w, group, syncStates, showSync)
 	}
-	writeItemTable(w, group, syncStates, showSync)
+	fmt.Fprintln(w)
 }
 
 // writeItemTable renders items as an aligned, headered table -- ID,
